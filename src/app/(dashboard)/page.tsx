@@ -15,3 +15,5 @@ const page = async () => {
 };
 
 export default page;
+
+//My main root page http://localhost:3000
