@@ -21,6 +21,7 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -152,7 +153,7 @@ export const SignInView = () => {
                         type="submit"
                         className="w-full"
                     >
-                        Sign in
+                        Sign In
                     </Button>
                     <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                     <span className="bg-card text-muted-foreground relative z-10 px-2">
@@ -189,9 +190,9 @@ export const SignInView = () => {
                 </form>
           </Form>
 
-          <div className="bg-radial from-green-700 to-green-900 relative hidden md:flex flex-col gap-y-4 items-center justify-center">
-            <img src="/logo.svg" alt="Image" className="h-[92px] w-[92px]" />
-            <p className="text-2xl font-semibold text-white">Meet AI!</p>
+          <div className="bg-radial from-sidebar-accent to-sidebar relative hidden md:flex flex-col gap-y-4 items-center justify-center">
+            <Image src="/logo.svg" alt="Image" className="h-[92px] w-[92px]" />
+            <p className="text-2xl font-semibold text-white">Meet.AI!</p>
           </div>
         </CardContent>
       </Card>
