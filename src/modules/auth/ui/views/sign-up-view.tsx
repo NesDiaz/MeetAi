@@ -36,7 +36,7 @@ const formSchema = z
   });
 
 export const SignUpView = () => {
-  const router = useRouter;
+  const router = useRouter();
  const [pending, setPending] = useState(false);
  const [error, setError] = useState<string | null>(null);
 
