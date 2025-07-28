@@ -12,7 +12,7 @@ export const DashboardNavbar = () => {
 
      useEffect(() => {
         const down = (e: KeyboardEvent) => {
-            if (e.key === "k" && (e.metakey || e.ctrlKey)) {
+            if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 setCommandOpen((open) => !open);
             }
@@ -24,7 +24,7 @@ export const DashboardNavbar = () => {
 
     return (
         <>
-        <DashboardCommand open={commandOpen} setOpen={SetCommandOpen} />
+        <DashboardCommand open={commandOpen} setOpen={setCommandOpen} />
         <nav className="flex px-4 gap-x-2 items-center py-3 border-b bg-background">
             <Button className="size-9" variant="outline" onClick={toggleSidebar}>
                 {(state === "collapsed" || isMobile) ? 
