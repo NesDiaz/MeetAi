@@ -5,11 +5,18 @@ import { getQueryClient, trpc } from "@/trpc/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { SearchParams } from "nuqs";
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 
-// Note: This is a SERVER COMPONENT (because it's async)
-const Page = async () => {
+import { loadSearchParams } from "@/modules/agents/params";
+interface Props {
+  searchParams: Promise<SearchParams>
+}
+
+const Page = async ({ searchParams }: Props) => {
+  const filters = await loadSearchParams(searchParams);
+
  const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -19,9 +26,9 @@ const Page = async () => {
   }
 
   const queryClient = getQueryClient();
-
-  // Prefetch data on the server
-  await queryClient.prefetchQuery(trpc.agents.getMany.queryOptions());
+  await queryClient.prefetchQuery(trpc.agents.getMany.queryOptions({
+    ...filters,
+  }));
 
   // Dehydrate server state once
   const dehydratedState = dehydrate(queryClient);
@@ -41,29 +48,3 @@ const Page = async () => {
 };
 
 export default Page;
-
-
-// import { AgentsView, AgentsViewError, AgentsViewLoading } from "@/modules/agents/server/ui/views/agents-view"
-// import { getQueryClient, trpc } from "@/trpc/server";
-// import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-// import { Suspense } from "react";
-// import { ErrorBoundary } from "react-error-boundary";
-
-// const Page = async () => {
-//     const queryClient = getQueryClient();
-//     void queryClient.prefetchQuery(trpc.agents.getMany.queryOptions());
-    
-//     return ( 
-//     <HydrationBoundary state={dehydrate(queryClient)}>
-//         <Suspense fallback={<AgentsViewLoading />}>
-//         <ErrorBoundary fallback={<AgentsViewError />}>
-//      <AgentsView />  
-//       </ErrorBoundary>
-//      </Suspense>
-//     </HydrationBoundary>
-    
-
-// );
-// };
-
-// export default Page;
