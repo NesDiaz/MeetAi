@@ -32,8 +32,9 @@ const Page = async ({searchParams }: Props ) => {
 
   return (
   <>
-  <MeetingsListHeader />
+ 
     <HydrationBoundary state={dehydrate(queryClient)}>
+      <MeetingsListHeader /> 
       <Suspense fallback={<MeetingsViewLoading />}>
         <ErrorBoundary fallback={<MeetingsViewError />}>
           <MeetingsView />

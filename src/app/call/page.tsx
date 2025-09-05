@@ -5,11 +5,15 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+// interface Props {
+//     params: Promise<{
+//         meetingId: string;
+//     }>;
+// };
 interface Props {
-    params: Promise<{
-        meetingId: string;
-    }>;
-};
+    params: { meetingId: string };
+  }
+  
 
 const Page = async ({ params }: Props) => {
     const { meetingId } = await params;
