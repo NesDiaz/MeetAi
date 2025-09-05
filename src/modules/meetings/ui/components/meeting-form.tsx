@@ -93,10 +93,11 @@ export const MeetingForm = ({
     const form = useForm<z.infer<typeof meetingsInsertSchema>>({
         resolver: zodResolver(meetingsInsertSchema),
         defaultValues: {
-            name: initialValues?.name ?? "",
-            agentId: initialValues?.agentId ?? "",
+          name: initialValues?.name ?? "",
+          agentId: initialValues?.agentId ?? "",
         },
-    });
+      });
+      
 
     const isEdit = !!initialValues?.id;
     const isPending = createMeeting.isPending || updateMeeting.isPending;

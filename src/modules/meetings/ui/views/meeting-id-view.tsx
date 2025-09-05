@@ -72,7 +72,8 @@ const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions({ id: meetin
       initialValues={data}
      />
    <div className="flex-1 py-4 px-4 md:px-8 flex flex-col gap-y-4">
-    {JSON.stringify(data, null, 2)}
+    {/* {JSON.stringify(data, null, 2)} */}
+
       <MeetingIdViewHeader
         meetingId={meetingId}
         meetingName={data.name}
