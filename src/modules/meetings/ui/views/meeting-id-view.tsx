@@ -16,6 +16,7 @@ import { UpcomingState } from "../components/upcoming-state";
 import { ActiveState } from "../components/active-state";
 import { CancelledState } from "../components/cancelled-state";
 import { ProcessingState } from "../components/processing-state";
+import { CompletedState } from "../components/completed-state";
 
 
 interface Props {
@@ -81,7 +82,7 @@ const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions({ id: meetin
        onRemove={handleRemoveMeeting}
       />
         {isCancelled && <CancelledState />}
-        {isCompleted && <div>completed</div>}
+        {isCompleted && <CompletedState data={data}/>}
         {isProcessing && <ProcessingState />}
         {isActive && <ActiveState meetingId={meetingId} />}
         {isUpcoming && <UpcomingState 
