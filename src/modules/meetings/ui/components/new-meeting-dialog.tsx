@@ -4,7 +4,6 @@ import { ResponsiveDialog } from "@/components/responsive-dialog";
 import { MeetingForm } from "./meeting-form";
 import { useRouter } from "next/navigation";
 
-
 interface NewMeetingDialogProps {
      open: boolean;
      onOpenChange: (open: boolean) => void;

@@ -7,6 +7,9 @@ import { createTRPCContext } from '@trpc/tanstack-react-query';
 import { useState } from 'react';
 import { makeQueryClient } from './query-client';
 import type { AppRouter } from '@/trpc/routers/_app';
+
+
+
 export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>();
 let browserQueryClient: QueryClient;
 function getQueryClient() {
@@ -27,7 +30,7 @@ function getUrl() {
     return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   })();
 
-  return `${base}/api/auth/trpc`;
+  return `${base}/api/trpc`;
 }
 
 
@@ -47,10 +50,19 @@ export function TRPCReactProvider(
         httpBatchLink({
           // transformer: superjson, <-- if you use a data transformer
           url: getUrl(),
+          fetch(url, options) {
+            return fetch(url, {
+              ...options,
+              credentials: 'include',
+                });
+  }
         }),
       ],
     }),
   );
+
+  console.log("Registered tRPC procedures:, trpc");
+
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
@@ -59,3 +71,36 @@ export function TRPCReactProvider(
     </QueryClientProvider>
   );
 }
+
+// src/trpc/client.tsx
+// "use client";
+
+// import { createTRPCReact } from "@trpc/react-query";
+// import type { AppRouter } from "@/trpc/routers/_app";
+// import { httpBatchLink } from "@trpc/client";
+// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// import { useState, ReactNode } from "react";
+
+// export const trpc = createTRPCReact<AppRouter>();
+
+// export function TRPCReactProvider({ children }: { children: ReactNode }) {
+//   const [queryClient] = useState(() => new QueryClient());
+//   const [trpcClient] = useState(() =>
+//     trpc.createClient({
+//       links: [
+//         httpBatchLink({
+//           url: (typeof window !== "undefined" ? "" : process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000") + "/api/trpc",
+//           fetch(url, options) {
+//             return fetch(url, { ...options, credentials: "include" });
+//           },
+//         }),
+//       ],
+//     }),
+//   );
+
+//   return (
+//     <trpc.Provider client={trpcClient} queryClient={queryClient}>
+//       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+//     </trpc.Provider>
+//   );
+// }

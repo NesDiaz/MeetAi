@@ -30,9 +30,17 @@ export const MeetingIdView = ({ meetingId }: Props) => {
   const queryClient = useQueryClient();
 
  const [updateMeetingDialogOpen, setUpdateMeetingDialogOpen] = useState(false);
-const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions({ id: meetingId }));
 
-  const removeMeeting = useMutation(
+const [RemoveConfirmation, confirmRemove] = useConfirm(
+   "Are you sure?",
+   "The following action will remove this meeting"
+   );
+
+const { data } = useSuspenseQuery(
+  trpc.meetings.getOne.queryOptions({ id: meetingId })
+);
+
+const removeMeeting = useMutation(
     trpc.meetings.remove.mutationOptions({
       onSuccess: async () => {
          await queryClient.invalidateQueries(trpc.meetings.getMany.queryOptions({}));
@@ -44,12 +52,7 @@ const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions({ id: meetin
        },    
     })
   );
-
-  const [RemoveConfirmation, confirmRemove] = useConfirm(
-   "Are you sure?",
-   "The following action will remove this meeting"
-   );
-
+ 
   const handleRemoveMeeting = async () => {
    const ok = await confirmRemove();
 
@@ -73,8 +76,6 @@ const { data } = useSuspenseQuery(trpc.meetings.getOne.queryOptions({ id: meetin
       initialValues={data}
      />
    <div className="flex-1 py-4 px-4 md:px-8 flex flex-col gap-y-4">
-    {/* {JSON.stringify(data, null, 2)} */}
-
       <MeetingIdViewHeader
         meetingId={meetingId}
         meetingName={data.name}

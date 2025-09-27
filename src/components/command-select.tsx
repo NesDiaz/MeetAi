@@ -67,7 +67,7 @@ export const CommandSelect = ({
         <CommandList>
           <CommandEmpty>
             <span className="text-muted-foreground text-sm">
-              NO options found
+              No options found
             </span>
           </CommandEmpty>
           {options.map((option) => (

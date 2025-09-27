@@ -21,6 +21,7 @@ export const meetingsRouter = createTRPCRouter({
                 image: 
                     ctx.auth.user.image ??
                     generateAvatarUri({ seed: ctx.auth.user.name, variant: "initials" }),
+                
             },
         ]);
 
@@ -88,6 +89,7 @@ export const meetingsRouter = createTRPCRouter({
             .values({
                 ...input,
                 userId: ctx.auth.user.id,
+                recordingUrl: input.recordingUrl ?? null,
             })
             .returning();
     

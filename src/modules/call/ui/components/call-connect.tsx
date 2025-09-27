@@ -12,7 +12,7 @@ import {
 } from "@stream-io/video-react-sdk";
 
 import { useTRPC } from "@/trpc/client";
-import "@stream-id/video-react-sdk/dist/css/styles.css";
+import "@stream-io/video-react-sdk/dist/css/styles.css";
 import { CallUI } from "./call-ui";
 
 interface Props {

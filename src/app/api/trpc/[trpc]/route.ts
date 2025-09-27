@@ -9,3 +9,4 @@ const handler = (req: Request) =>
     createContext: createTRPCContext,
   });
 export { handler as GET, handler as POST };
+

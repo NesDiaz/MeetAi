@@ -13,7 +13,8 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { generateAvatarUri } from "@/lib/avatar";
 
-import "@strem-io/video-react-sdk/dist/css/styles.css";
+import "@stream-io/video-react-sdk/dist/css/styles.css";
+
 
 interface Props {
     onJoin: () => void;
