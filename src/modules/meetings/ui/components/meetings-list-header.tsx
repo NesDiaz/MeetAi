@@ -35,7 +35,7 @@ export const MeetingsListHeader = () => {
             <h5 className="font-medium text-xl">My Meetings</h5>
             <Button onClick={() => setIsDialogOpen(true)}>
                 <PlusIcon />
-                New Meetings
+                New Meeting
             </Button>
            </div>
            <ScrollArea>
