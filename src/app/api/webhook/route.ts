@@ -1,4 +1,3 @@
-
 import { and, eq, not } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -6,7 +5,7 @@ import {
     CallTranscriptionReadyEvent,
     CallRecordingReadyEvent,
     CallSessionParticipantLeftEvent,
-        CallSessionStartedEvent,
+    CallSessionStartedEvent,
 } from "@stream-io/node-sdk";
 
 import { db } from "@/db";
@@ -121,7 +120,7 @@ export async function POST(req: NextRequest) {
                 endedAt: new Date(),
             })
             .where(and(eq(meetings.id, meetingId), eq(meetings.status, "active")));
-    } else if (eventType === "call.transcripton_ready") {
+    } else if (eventType === "call.transcription_ready") {
         const event = payload as CallTranscriptionReadyEvent;
         const meetingId = event.call_cid.split(":")[1] // call_cid is formattted as "type:id"
 

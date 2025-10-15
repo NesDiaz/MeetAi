@@ -31,7 +31,7 @@ export const CallUI = ({ meetingName }: Props) => {
         <StreamTheme className="h-full">
             {show === "lobby" && <CallLobby onJoin={handleJoin} />}
             {show === "call" && <CallActive onLeave={handleLeave} meetingName={meetingName} />}
-            {show === "lobby" && <CallEnded />}
+            {show === "ended" && <CallEnded />}
         </StreamTheme>
     )
 }
