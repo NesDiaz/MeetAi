@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { ChevronsDownIcon } from "lucide-react";
+import { ChevronsUpDownIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,7 @@ export const CommandSelect = ({
         )}
       >
         <div>{selectedOption?.children ?? placeholder}</div>
-        <ChevronsDownIcon />
+        <ChevronsUpDownIcon />
       </Button>
       <CommandResponsiveDialog 
       shouldFilter={!onSearch}

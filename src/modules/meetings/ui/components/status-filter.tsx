@@ -69,7 +69,7 @@ import {
 
     return (
         <CommandSelect 
-            placeholder="status"
+            placeholder="Status"
             className="h-9"
             options={options}
             onSelect={(value) => setFilters({ status: value as MeetingStatus })}

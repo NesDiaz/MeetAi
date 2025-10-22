@@ -12,10 +12,14 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-//import { SearchParams } from "nuqs";
+import { SearchParams } from "nuqs/server";
+
+// interface Props {
+//     searchParams: Promise<{SearchParams:string}>;
+//   }
 interface Props {
-    searchParams: Promise<{SearchParams:string}>;
-  }
+  searchParams: Promise<SearchParams>;
+}
    
   const Page = async ({searchParams }: Props ) => {
       const filters = await loadSearchParams(searchParams);
@@ -30,7 +34,6 @@ interface Props {
    
 
   const queryClient = getQueryClient();
-
   await queryClient.prefetchQuery(
     trpc.meetings.getMany.queryOptions({
       ...filters,

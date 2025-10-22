@@ -86,11 +86,11 @@ const removeMeeting = useMutation(
         {isCompleted && <CompletedState data={data}/>}
         {isProcessing && <ProcessingState />}
         {isActive && <ActiveState meetingId={meetingId} />}
-        {isUpcoming && <UpcomingState 
+        {isUpcoming && (<UpcomingState 
             meetingId={meetingId}
             onCancelMeeting={() => {}}
             isCancelling={false}
-        />}
+        />)}
     </div>
     </>
 );
