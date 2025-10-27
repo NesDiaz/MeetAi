@@ -13,6 +13,8 @@ import { agents, meetings } from "@/db/schema";
 import { streamVideo } from "@/lib/stream-video";
 import { inngest } from "@/inngest/client";
 
+export const runtime = "nodejs";
+
 function verifySignatureWithSDK(body: string, signature: string): boolean {
     return streamVideo.verifyWebhook(body, signature);
 };
@@ -85,6 +87,9 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ error: "Agent not found" }, { status: 404 });
             }
 
+            process.env.WS_NO_BUFFER_UTIL = "true";
+            process.env.WS_NO_UTF_8_VALIDATE = "true";
+
         const call = streamVideo.video.call("default", meetingId);
          const realtimeClient = await streamVideo.video.connectOpenAi({
             call,
@@ -95,7 +100,8 @@ export async function POST(req: NextRequest) {
          realtimeClient.updateSession({
             instructions: existingAgent.instructions,
          });
-    } else if (eventType === "call.session_participant_left") {
+
+           } else if (eventType === "call.session_participant_left") {
         const event = payload as CallSessionParticipantLeftEvent;
         const meetingId = event.call_cid.split(":")[1]; //call_cid is formatted as "type:id"
 
@@ -124,6 +130,11 @@ export async function POST(req: NextRequest) {
         const event = payload as CallTranscriptionReadyEvent;
         const meetingId = event.call_cid.split(":")[1] // call_cid is formattted as "type:id"
 
+        if (!event.call_transcription?.url) {
+            console.warn("No transcription URL found in event payload:", event);
+            return NextResponse.json({ status: "no transcript URL" });
+          }
+
         const [updatedMeeting] = await db
             .update(meetings)
             .set({
@@ -133,9 +144,9 @@ export async function POST(req: NextRequest) {
             .returning();
 
             if (!updatedMeeting) {
-                return NextResponse.json({ error: "Missing not found" }, { status: 400 });
+                return NextResponse.json({ error: "Missing not found" }, { status: 404 });
             }
-
+            if (updatedMeeting.transcriptUrl) {
         await inngest.send({
             name: "meetings/processing",
             data: {
@@ -143,6 +154,10 @@ export async function POST(req: NextRequest) {
                 transcriptUrl: updatedMeeting.transcriptUrl,
             },
         });
+    } else {
+        console.warn("Skipping Inngest event; transcriptUrl missing");
+      }
+    
     } else if (eventType === "call.recording_ready") {
         const event = payload as CallRecordingReadyEvent;
         const meetingId = event.call_cid.split(":")[1] // call_cid is formattted as "type:id"
