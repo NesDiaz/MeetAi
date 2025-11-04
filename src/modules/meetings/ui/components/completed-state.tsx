@@ -16,6 +16,8 @@ import { MeetingGetOne } from "../../types";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration } from "@/lib/utils";
+import { Transcript } from "./transcript";
+import { ChatProvider } from "./chat-provider";
 
 interface Props {
   data: MeetingGetOne;
@@ -43,7 +45,7 @@ export const CompletedState = ({ data }: Props) => {
                 Transcript
               </TabsTrigger>
               <TabsTrigger
-               value="recording"
+                value="recording"
                 className="text-muted-foreground rounded-none bg-background data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:text-accent-foreground h-full hover:text-accent-foreground"
               >
                 <FileVideoIcon />
@@ -60,6 +62,12 @@ export const CompletedState = ({ data }: Props) => {
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </div>
+        <TabsContent value="chat">
+          <ChatProvider meetingId={data.id} meetingName={data.name}/>
+        </TabsContent>
+        <TabsContent value="transcript">
+          <Transcript meetingId={data.id} />
+        </TabsContent>
         <TabsContent value="recording">
           <div className="bg-white rounded-lg border px-4 py-5">
             <video
@@ -88,7 +96,7 @@ export const CompletedState = ({ data }: Props) => {
                 <p>{data.startedAt ? format(data.startedAt, "PPP") : ""}</p>
               </div>
               <div className="flex gap-x-2 items-center">
-                <SparklesIcon className="size-4"/>
+                <SparklesIcon className="size-4" />
                 <p>General summary</p>
               </div>
               <Badge
@@ -100,41 +108,50 @@ export const CompletedState = ({ data }: Props) => {
               </Badge>
               <div>
                 <Markdown
-                    components={{
-                        h1: (props) => (
-                            <h1 className="text-2xl font-medium mb-6" {...props} />
-                        ),
-                        h2: (props) => (
-                            <h2 className="text-xl font-medium mb-6" {...props} />
-                        ),
-                        h3: (props) => (
-                            <h3 className="text-lg font-medium mb-6" {...props} />
-                        ),
-                        h4: (props) => (
-                            <h4 className="text-base font-medium mb-6" {...props} />
-                        ),
-                        p: (props) => (
-                            <p className="mb-6 leading-relaxed" {...props} />
-                        ),
-                        ul: (props)  => (
-                            <ul className="list-disc list-inside mb-6" {...props} />
-                        ),
-                        ol: (props)  => (
-                            <ol className="list-decimal list-inside mb-6" {...props} />
-                        ),
-                        li: (props)  => <li className="mb-1" {...props} />,
-                        strong: (props) => (
-                            <strong className="font-semibold" {...props} />
-                        ),
-                        code: (props)  => (
-                        <code className="bg-gray-100 px-1 py-0.5 rounded" {...props} />
-                        ),
-                        blockquote: (props)  => (
-                            <blockquote className="border-l-4 pl-4 italic my-4" {...props} />
-                        ),
-                    }}
+                  components={{
+                    h1: (props) => (
+                      <h1 className="text-2xl font-medium mb-6" {...props} />
+                    ),
+                    h2: (props) => (
+                      <h2 className="text-xl font-medium mb-6" {...props} />
+                    ),
+                    h3: (props) => (
+                      <h3 className="text-lg font-medium mb-6" {...props} />
+                    ),
+                    h4: (props) => (
+                      <h4 className="text-base font-medium mb-6" {...props} />
+                    ),
+                    p: (props) => (
+                      <p className="mb-6 leading-relaxed" {...props} />
+                    ),
+                    ul: (props) => (
+                      <ul className="list-disc list-inside mb-6" {...props} />
+                    ),
+                    ol: (props) => (
+                      <ol
+                        className="list-decimal list-inside mb-6"
+                        {...props}
+                      />
+                    ),
+                    li: (props) => <li className="mb-1" {...props} />,
+                    strong: (props) => (
+                      <strong className="font-semibold" {...props} />
+                    ),
+                    code: (props) => (
+                      <code
+                        className="bg-gray-100 px-1 py-0.5 rounded"
+                        {...props}
+                      />
+                    ),
+                    blockquote: (props) => (
+                      <blockquote
+                        className="border-l-4 pl-4 italic my-4"
+                        {...props}
+                      />
+                    ),
+                  }}
                 >
-                    {data.summary}
+                  {data.summary}
                 </Markdown>
               </div>
             </div>
