@@ -17,6 +17,7 @@ import { ActiveState } from "../components/active-state";
 import { CancelledState } from "../components/cancelled-state";
 import { ProcessingState } from "../components/processing-state";
 import { CompletedState } from "../components/completed-state";
+import { MeetingStatus } from "../../types";
 
 
 interface Props {
@@ -60,7 +61,32 @@ const removeMeeting = useMutation(
 
     await removeMeeting.mutateAsync({ id: meetingId });
   };
+  const cancelMeeting = useMutation(
+    trpc.meetings.update.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          trpc.meetings.getOne.queryOptions({ id: meetingId })
+        );
+        await queryClient.invalidateQueries(trpc.meetings.getMany.queryOptions({}));
+        toast.success("Meeting cancelled");
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    })
+  );
 
+const handleCancelMeeting = async () => {
+  const ok = await confirmRemove();
+  if (!ok) return;
+
+  cancelMeeting.mutate({ id: meetingId, status: MeetingStatus.Cancelled });
+  onSuccess: 
+   ( router.push("/meetings"))
+  
+};
+
+  
   const isActive = data.status === "active";
   const isUpcoming = data.status === "upcoming";
   const isCancelled= data.status === "cancelled";
@@ -88,8 +114,9 @@ const removeMeeting = useMutation(
         {isActive && <ActiveState meetingId={meetingId} />}
         {isUpcoming && (<UpcomingState 
             meetingId={meetingId}
-            onCancelMeeting={() => {}}
-            isCancelling={false}
+            onCancelMeeting={handleCancelMeeting}
+            isCancelling={cancelMeeting.isPending}
+            //isCancelling={false}
         />)}
     </div>
     </>
