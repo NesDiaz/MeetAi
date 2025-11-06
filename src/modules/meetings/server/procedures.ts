@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { meetings, agents, user } from "@/db/schema";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init";
 import JSONL from "jsonl-parse-stringify";
 
 import { z } from "zod";
@@ -206,28 +206,7 @@ export const meetingsRouter = createTRPCRouter({
     return updatedMeeting;
   }),
 
-
-  // update: protectedProcedure
-  //   .input(meetingsUpdateSchema)
-  //   .mutation(async ({ ctx, input }) => {
-  //     const [updatedMeeting] = await db
-  //       .update(meetings)
-  //       .set(input)
-  //       .where(
-  //         and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id))
-  //       )
-  //       .returning();
-
-  //     if (!updatedMeeting) {
-  //       throw new TRPCError({
-  //         code: "NOT_FOUND",
-  //         message: "Meeting not found",
-  //       });
-  //     }
-  //     return updatedMeeting;
-  //   }),
-
-  create: protectedProcedure
+  create: premiumProcedure("meetings")
     .input(meetingsInsertSchema)
     .mutation(async ({ input, ctx }) => {
       const [createdMeeting] = await db
