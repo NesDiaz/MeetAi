@@ -18,6 +18,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DashboardUserButton } from "./dashboard-user-button";
+import { DashboardTrial } from "./dashboard-trial";
+
 
  const firstSection = [
     {
@@ -64,7 +66,6 @@ const pathname = usePathname();
                                 asChild
                                 className={cn(
                                     "h-10 hover:bg-linear-to-r/oklch border border-transparent hover:border-[#5D6B68]/10 hover:bg-gradient-to-r from-sidebar-accent from-5% via-sidebar/50 via-30% to-sidebar/50",
-                                    "h-10 border border-transparent hover:border-[#5D6B68]/10 hover:bg-linear-to-r from-sidebar-accent from-5% via-sidebar/50 via-30% to-sidebar/50",
                                     pathname === item.href && "bg-linear-to-r/oklch border-[#5D6B68]/10"
                                 )}
                                     isActive={pathname === item.href}
@@ -111,6 +112,7 @@ const pathname = usePathname();
                 </SidebarGroup>
             </SidebarContent>
             <SidebarFooter className="text-white">
+            <DashboardTrial  />
                 <DashboardUserButton />
             </SidebarFooter>
         </Sidebar>
