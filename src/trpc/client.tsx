@@ -27,12 +27,16 @@ function getQueryClient() {
 function getUrl() {
   const base = (() => {
     if (typeof window !== 'undefined') return '';
-    return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    // Use Vercel-provided URL if deployed
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    // Fallback to your manual URL if Vercel_URL isn't set
+    if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
+    // Local fallback
+    return 'http://localhost:3000';
   })();
 
   return `${base}/api/trpc`;
 }
-
 
 export function TRPCReactProvider(
   props: Readonly<{
