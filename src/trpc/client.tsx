@@ -32,8 +32,13 @@ function getUrl() {
     return 'http://localhost:3000';
   })();
 
-  return `${base}/api/trpc`;
+  const fullUrl = `${base}/api/trpc`;
+  console.log('[tRPC] Using base URL:', base);
+  console.log('[tRPC] Final URL:', fullUrl);
+  return fullUrl;
 }
+ // return `${base}/api/trpc`;
+//}
 
 export function TRPCReactProvider(
   props: Readonly<{
