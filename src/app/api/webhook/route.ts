@@ -64,6 +64,7 @@ const signature = req.headers.get("x-signature");
   }
 
   const eventType = (payload as Record<string, unknown>)?.type;
+  console.log("📦 Incoming Stream event:", eventType);
 
   // 🟢 Handle event types below
   if (eventType === "call.session_started") {
@@ -169,6 +170,10 @@ const signature = req.headers.get("x-signature");
         transcriptUrl: updatedMeeting.transcriptUrl,
       },
     });
+    if (!signature || !apiKey) {
+      console.log("⚠️ Missing headers:", { signature, apiKey });
+    }
+    
   } else if (eventType === "call.recording_ready") {
     const event = payload as CallRecordingReadyEvent;
     const meetingId = event.call_cid.split(":")[1];
