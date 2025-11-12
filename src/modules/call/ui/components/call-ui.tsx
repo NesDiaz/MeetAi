@@ -11,30 +11,35 @@ interface Props {
 export const CallUI = ({ meetingName }: Props) => {
   const call = useCall();
   const [show, setShow] = useState<"lobby" | "call" | "ended">("lobby");
-
   const [isJoining, setIsJoining] = useState(false);
 
+  if (!call) return null; // 🔒 Prevent premature render
+
   const handleJoin = async () => {
-    if (!call || isJoining) return;
-  
+    if (isJoining) return;
     const state = call.state.callingState;
+
     if (state === "joined" || state === "joining") return;
-  
+
     setIsJoining(true);
     try {
       await call.join();
       setShow("call");
+    } catch (e) {
+      console.error("Join failed:", e);
+      setShow("ended");
     } finally {
       setIsJoining(false);
     }
   };
- 
 
   const handleLeave = () => {
-    if (!call) return;
     call.endCall();
     setShow("ended");
   };
+
+  // 🔄 Listen for automatic call-end events
+  call.on("call.ended", () => setShow("ended"));
 
   return (
     <StreamTheme className="h-full">

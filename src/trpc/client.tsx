@@ -26,12 +26,9 @@ function getQueryClient() {
 }
 function getUrl() {
   const base = (() => {
-    if (typeof window !== 'undefined') return '';
-    // Use Vercel-provided URL if deployed
+    if (typeof window !== 'undefined') return ''; // browser should use relative path
     if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-    // Fallback to your manual URL if Vercel_URL isn't set
-    if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-    // Local fallback
+    if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
     return 'http://localhost:3000';
   })();
 
