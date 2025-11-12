@@ -197,7 +197,9 @@ const signature = req.headers.get("x-signature");
     const [existingMeeting] = await db
       .select()
       .from(meetings)
-      .where(and(eq(meetings.id, channelId), eq(meetings.status, "completed")));
+      // .where(and(eq(meetings.id, channelId), eq(meetings.status, "completed")));
+      .where(and(eq(meetings.id, channelId), not(eq(meetings.status, "cancelled"))));
+
 
     if (!existingMeeting) {
       return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
