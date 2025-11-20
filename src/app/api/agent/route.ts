@@ -2,7 +2,7 @@ export const config = {
     runtime: "edge",
   };
   
-  export default function handler(req: Request): Response {
+  export async function POST(req: Request) {
     if (req.method !== "GET") {
       return new Response("Only GET allowed", { status: 405 });
     }
