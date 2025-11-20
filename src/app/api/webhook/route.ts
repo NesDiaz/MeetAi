@@ -165,7 +165,9 @@ if (hasAddMembers(call)) {
       } catch (err) {
         console.error("❌ OpenAI realtime error:", err);
       }
+
     }
+    
 
     // ----------------------------------------------------------------------
     // PARTICIPANT LEFT

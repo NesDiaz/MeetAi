@@ -27,6 +27,7 @@ import { streamVideo } from "@/lib/stream-video";
 import { generateAvatarUri } from "@/lib/avatar";
 import { streamChat } from "@/lib/stream-chat";
 
+
 export const meetingsRouter = createTRPCRouter({
   generateChatToken: protectedProcedure.mutation(async ({ ctx }) => {
     const token = streamChat.createToken(ctx.auth.user.id);
@@ -239,6 +240,8 @@ export const meetingsRouter = createTRPCRouter({
           },
         },
       });
+      // 🔗 Connect Stream call → Vercel Realtime Agent
+    
       const [existingAgent] = await db
         .select()
         .from(agents)
