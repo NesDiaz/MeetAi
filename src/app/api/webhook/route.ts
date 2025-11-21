@@ -35,6 +35,48 @@ function verifySignature(body: string, signature: string) {
 }
 
 // -------------------------------
+// TYPE GUARDS
+// -------------------------------
+interface AddMembersCapable {
+  addMembers?: (ids: string[]) => Promise<void>;
+}
+
+function hasAddMembers(call: unknown): call is AddMembersCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "addMembers" in call &&
+    typeof (call as AddMembersCapable).addMembers === "function"
+  );
+}
+
+interface UpdateCallCapable {
+  updateCall?: (data: unknown) => Promise<void>;
+}
+
+function hasUpdateCall(call: unknown): call is UpdateCallCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "updateCall" in call &&
+    typeof (call as UpdateCallCapable).updateCall === "function"
+  );
+}
+
+interface OpenAIConnectCapable {
+  connectOpenAi?: (opts: { openAiApiKey: string; agentUserId: string }) => Promise<any>;
+}
+
+function hasConnectOpenAi(call: unknown): call is OpenAIConnectCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "connectOpenAi" in call &&
+    typeof (call as OpenAIConnectCapable).connectOpenAi === "function"
+  );
+}
+
+// -------------------------------
 // MAIN WEBHOOK
 // -------------------------------
 export async function POST(req: NextRequest) {
@@ -56,7 +98,7 @@ export async function POST(req: NextRequest) {
 
   let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(rawBody);
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch (err) {
     console.error("❌ Bad JSON:", err);
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
@@ -66,14 +108,14 @@ export async function POST(req: NextRequest) {
   console.log("📦 Event:", eventType);
 
   try {
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // CALL STARTED
-    // ----------------------------------------------------------------------
+    // -------------------------------
     if (eventType === "call.session_started") {
       const event = payload as unknown as CallSessionStartedEvent;
-console.log("▶ call.session_started:", event.call_cid);
+      console.log("▶ call.session_started:", event.call_cid);
 
-const meetingId = event.call?.custom?.meetingId;
+      const meetingId = event.call?.custom?.meetingId;
       if (!meetingId) {
         console.warn("❌ Missing meetingId");
         return NextResponse.json({ error: "Missing meetingId" }, { status: 400 });
@@ -121,57 +163,44 @@ const meetingId = event.call?.custom?.meetingId;
 
       const call = streamVideo.video.call("default", meetingId);
 
-// Create a minimal typed interface for what we need
-interface AddMembersCapable {
-  addMembers?: (ids: string[]) => Promise<void>;
-}
-
-// Type guard to ensure call has addMembers
-function hasAddMembers(call: unknown): call is AddMembersCapable {
-  return (
-    typeof call === "object" &&
-    call !== null &&
-    "addMembers" in call &&
-    typeof (call as AddMembersCapable).addMembers === "function"
-  );
-}
-
-// Use the guard
-if (hasAddMembers(call)) {
-  try {
-    await 
-    console.log("➕ Added agent to call");
-  } catch (err) {
-    console.error("⚠️ addMembers error:", err);
-  }
-} else {
-  console.log("ℹ️ addMembers not available in SDK");
-}
+      // Add agent to call
+      if (hasUpdateCall(call)) {
+        try {
+          await call.updateCall({
+            members: [{ user_id: agent.id, role: "video-agent" }],
+          });
+          console.log("➕ Added agent to call");
+        } catch (err) {
+          console.error("⚠️ updateCall error:", err);
+        }
+      } else {
+        console.log("ℹ️ updateCall not available in SDK");
+      }
 
       // Fix Vercel WS
       process.env.WS_NO_BUFFER_UTIL = "true";
       process.env.WS_NO_UTF_8_VALIDATE = "true";
 
+      // Connect OpenAI realtime agent
       try {
-        console.log("🔗 Connecting OpenAI realtime agent:", agent.id);
-        const realtimeClient = await streamVideo.video.connectOpenAi({
-          call,
-          openAiApiKey: process.env.OPENAI_API_KEY!,
-          agentUserId: agent.id,
-        });
-
-        await realtimeClient.updateSession({ instructions: agent.instructions });
-        console.log("✅ Realtime agent connected");
+        if (hasConnectOpenAi(call)) {
+          const realtimeClient = await call.connectOpenAi({
+            openAiApiKey: process.env.OPENAI_API_KEY!,
+            agentUserId: agent.id,
+          });
+          await realtimeClient.updateSession({ instructions: agent.instructions });
+          console.log("✅ Realtime agent connected");
+        } else {
+          console.log("ℹ️ connectOpenAi not available on call object");
+        }
       } catch (err) {
         console.error("❌ OpenAI realtime error:", err);
       }
-
     }
-    
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // PARTICIPANT LEFT
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else if (eventType === "call.session_participant_left") {
       const event = payload as unknown as CallSessionParticipantLeftEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
@@ -187,9 +216,9 @@ if (hasAddMembers(call)) {
       }
     }
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // CALL ENDED → PROCESSING
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else if (eventType === "call.session_ended") {
       const event = payload as unknown as CallEndedEvent;
       const meetingId = event.call?.custom?.meetingId;
@@ -200,18 +229,16 @@ if (hasAddMembers(call)) {
           .update(meetings)
           .set({ status: "processing", endedAt: new Date() })
           .where(and(eq(meetings.id, meetingId), eq(meetings.status, "active")));
-
         console.log("🔄 Meeting set to processing:", meetingId);
       }
     }
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // TRANSCRIPTION READY
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else if (eventType === "call.transcription_ready") {
       const event = payload as unknown as CallTranscriptionReadyEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
-
       console.log("📝 transcription_ready:", meetingId);
 
       if (meetingId) {
@@ -226,15 +253,14 @@ if (hasAddMembers(call)) {
             name: "meetings/processing",
             data: { meetingId: row.id, transcriptUrl: row.transcriptUrl },
           });
-
           console.log("📨 Inngest processing event sent");
         }
       }
     }
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // RECORDING READY
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else if (eventType === "call.recording_ready") {
       const event = payload as unknown as CallRecordingReadyEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
@@ -245,14 +271,13 @@ if (hasAddMembers(call)) {
           .update(meetings)
           .set({ recordingUrl: event.call_recording?.url })
           .where(eq(meetings.id, meetingId));
-
         console.log("🎥 Recording saved");
       }
     }
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // STREAM CHAT MESSAGE → USE OPENAI
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else if (eventType === "message.new") {
       const event = payload as unknown as MessageNewEvent;
       const userId = event.user?.id;
@@ -281,22 +306,18 @@ if (hasAddMembers(call)) {
             const channel = streamChat.channel("messaging", channelId);
             await channel.watch();
 
-            const previousMessages: ChatCompletionMessageParam[] =
-              channel.state.messages
-                .slice(-5)
-                .filter((m) => m.text?.trim())
-                .map((m) => ({
-                  role: m.user?.id === agent.id ? "assistant" : "user",
-                  content: m.text ?? "",
-                }));
+            const previousMessages: ChatCompletionMessageParam[] = channel.state.messages
+              .slice(-5)
+              .filter((m) => m.text?.trim())
+              .map((m) => ({
+                role: m.user?.id === agent.id ? "assistant" : "user",
+                content: m.text ?? "",
+              }));
 
             const completion = await openaiClient.chat.completions.create({
               model: "gpt-4o",
               messages: [
-                {
-                  role: "system",
-                  content: agent.instructions || "You are a helpful assistant.",
-                },
+                { role: "system", content: agent.instructions || "You are a helpful assistant." },
                 ...previousMessages,
                 { role: "user", content: text },
               ],
@@ -305,16 +326,8 @@ if (hasAddMembers(call)) {
             const reply = completion.choices?.[0]?.message?.content ?? "";
             console.log("🤖 Reply:", reply.slice(0, 200));
 
-            const avatar = generateAvatarUri({
-              seed: agent.name,
-              variant: "botttsNeutral",
-            });
-
-            await streamChat.upsertUser({
-              id: agent.id,
-              name: agent.name,
-              image: avatar,
-            });
+            const avatar = generateAvatarUri({ seed: agent.name, variant: "botttsNeutral" });
+            await streamChat.upsertUser({ id: agent.id, name: agent.name, image: avatar });
 
             await channel.sendMessage({
               text: reply,
@@ -327,9 +340,9 @@ if (hasAddMembers(call)) {
       }
     }
 
-    // ----------------------------------------------------------------------
+    // -------------------------------
     // UNKNOWN EVENT
-    // ----------------------------------------------------------------------
+    // -------------------------------
     else {
       console.log("ℹ️ Unhandled event:", eventType);
     }
@@ -341,15 +354,15 @@ if (hasAddMembers(call)) {
   }
 }
 
-// -------------------------------------------------------
+// -------------------------------
 // DEV TOOL: PUT → forward to Inngest
-// -------------------------------------------------------
+// -------------------------------
 export async function PUT(req: NextRequest) {
   const raw = await req.text();
   let body: Record<string, unknown> = {};
 
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as Record<string, unknown>;
   } catch {}
 
   try {
@@ -360,7 +373,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
-
 
 // import OpenAI from "openai";
 // import { and, eq, not } from "drizzle-orm";
