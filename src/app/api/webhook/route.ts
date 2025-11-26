@@ -113,9 +113,9 @@ export async function POST(req: NextRequest) {
     if (eventType === "call.session_started") {
       const event = payload as unknown as CallSessionStartedEvent;
       const meetingId = event.call?.custom?.meetingId as string | undefined;
-
+    
       if (!meetingId) return NextResponse.json({ ok: true });
-
+    
       const [existingMeeting] = await db
         .select()
         .from(meetings)
@@ -128,75 +128,72 @@ export async function POST(req: NextRequest) {
             not(eq(meetings.status, "processing"))
           )
         );
-
+    
       if (!existingMeeting) return NextResponse.json({ ok: true });
-
+    
       await db
         .update(meetings)
         .set({ status: "active", startedAt: new Date() })
         .where(eq(meetings.id, meetingId));
-
-      const [agent] = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, existingMeeting.agentId));
-
+    
+      // ---- FETCH AGENT ----
+      const [agent] = await db.select().from(agents).where(eq(agents.id, existingMeeting.agentId));
       if (!agent) return NextResponse.json({ ok: true });
-
+    
       const avatarUrl = generateAvatarUri({
         seed: agent.name,
         variant: "botttsNeutral",
       });
-
-      await streamChat.upsertUser({
-        id: agent.id,
-        name: agent.name,
-        image: avatarUrl,
-      });
-
-      const call = streamVideo.video.call(
-        "default",
-        meetingId
-      ) as unknown as StreamCall;
-
+    
+      // ---------- AGENT MUST BE UPSERTED INTO STREAM VIDEO ----------
+      await streamVideo.upsertUsers([
+        {
+          id: agent.id,
+          name: agent.name,
+          role: "video-agent", // <-- REQUIRED
+          image: avatarUrl,
+        },
+      ]);
+      console.log("Video agent upserted");
+    
+      // ---------- UPDATE CALL MEMBERS ----------
+      const call = streamVideo.video.call("default", meetingId) as unknown as StreamCall;
+    
       if (hasUpdateCall(call)) {
         try {
           await call.updateCall({
-            members: [{ user_id: agent.id, role: "video-agent" }],
+            members: [
+              { user_id: agent.id, role: "video-agent" }
+            ],
           });
-          console.log("➕ Agent added to call");
+          console.log("Agent added to call");
         } catch (err) {
           console.error("updateCall error:", err);
         }
       }
-
-      // For ws / realtime client
-      process.env.WS_NO_BUFFER_UTIL = "true";
-      process.env.WS_NO_UTF_8_VALIDATE = "true";
-
+    
+      // ---------- CONNECT REALTIME OPENAI AGENT ----------
       if (hasConnectOpenAi(call)) {
         try {
           const realtimeClient = await call.connectOpenAi({
             openAiApiKey: process.env.OPENAI_API_KEY!,
             agentUserId: agent.id,
           });
-
+    
           if (realtimeClient.updateSession) {
             await realtimeClient.updateSession({
-              instructions:
-                agent.instructions ||
-                "You are a helpful AI assistant for this meeting.",
+              instructions: agent.instructions || "You are a helpful AI assistant.",
             });
           }
-
-          console.log("✅ Realtime agent connected");
+    
+          console.log("Realtime agent connected");
         } catch (err) {
           console.error("connectOpenAi error:", err);
         }
       }
-
+    
       return NextResponse.json({ ok: true });
-    }
+    } 
 
     /* -------------------------------
        PARTICIPANT LEFT
