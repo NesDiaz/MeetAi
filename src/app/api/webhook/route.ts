@@ -1,9 +1,9 @@
-// src/app/api/webhook/route.ts
 import OpenAI from "openai";
 import { and, eq, not } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-import {
+import type {
   MessageNewEvent,
   CallEndedEvent,
   CallTranscriptionReadyEvent,
@@ -18,17 +18,24 @@ import { streamVideo } from "@/lib/stream-video";
 import { streamChat } from "@/lib/stream-chat";
 import { inngest } from "@/inngest/client";
 import { generateAvatarUri } from "@/lib/avatar";
-import { ChatCompletionMessageParam } from "openai/resources/index.mjs";
+import type { ChatCompletionMessageParam } from "openai/resources/index.mjs";
 
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
 export const runtime = "nodejs";
 
 /* -------------------------------
-   TYPES (to avoid "any")
+   TYPES (no "any")
 -------------------------------- */
+
 interface StreamCall {
-  updateCall?: (args: { members: { user_id: string; role: string }[] }) => Promise<unknown>;
-  connectOpenAi?: (args: { openAiApiKey: string; agentUserId: string }) => Promise<RealtimeClient>;
+  updateCall?: (args: {
+    members: { user_id: string; role: string }[];
+  }) => Promise<unknown>;
+  connectOpenAi?: (args: {
+    openAiApiKey: string;
+    agentUserId: string;
+  }) => Promise<RealtimeClient>;
 }
 
 interface RealtimeClient {
@@ -43,8 +50,10 @@ interface StreamMessage {
 /* -------------------------------
    HELPERS
 -------------------------------- */
+
 function verifySignature(body: string, signature: string): boolean {
   try {
+    // Uses your existing Stream Video server client
     return streamVideo.verifyWebhook(body, signature);
   } catch (err) {
     console.error("verifySignature error:", err);
@@ -52,7 +61,9 @@ function verifySignature(body: string, signature: string): boolean {
   }
 }
 
-function hasUpdateCall(call: StreamCall): call is Required<Pick<StreamCall, "updateCall">> {
+function hasUpdateCall(
+  call: StreamCall
+): call is Required<Pick<StreamCall, "updateCall">> {
   return typeof call.updateCall === "function";
 }
 
@@ -63,29 +74,32 @@ function hasConnectOpenAi(
 }
 
 /* -------------------------------
-   MAIN WEBHOOK
+   MAIN WEBHOOK (POST)
 -------------------------------- */
+
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   console.log("📩 RAW BODY (preview):", rawBody.slice(0, 2000));
 
+  // Stream typically sends x-signature, but we also support x-stream-signature
   const signature =
     req.headers.get("x-signature") ?? req.headers.get("x-stream-signature");
-  const apiKeyHeader =
-    req.headers.get("x-api-key") ?? req.headers.get("x-stream-api-key");
 
-  if (!signature || !apiKeyHeader) {
-    return NextResponse.json({ error: "Missing headers" }, { status: 400 });
+  if (!signature) {
+    console.warn("Webhook missing signature header");
+    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
 
   if (!verifySignature(rawBody, signature)) {
+    console.warn("Webhook signature verification failed");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(rawBody);
-  } catch {
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
+  } catch (err) {
+    console.error("Bad JSON in webhook:", err);
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -98,7 +112,7 @@ export async function POST(req: NextRequest) {
     -------------------------------- */
     if (eventType === "call.session_started") {
       const event = payload as unknown as CallSessionStartedEvent;
-      const meetingId = event.call?.custom?.meetingId;
+      const meetingId = event.call?.custom?.meetingId as string | undefined;
 
       if (!meetingId) return NextResponse.json({ ok: true });
 
@@ -126,19 +140,24 @@ export async function POST(req: NextRequest) {
         .select()
         .from(agents)
         .where(eq(agents.id, existingMeeting.agentId));
+
       if (!agent) return NextResponse.json({ ok: true });
 
       const avatarUrl = generateAvatarUri({
         seed: agent.name,
         variant: "botttsNeutral",
       });
+
       await streamChat.upsertUser({
         id: agent.id,
         name: agent.name,
         image: avatarUrl,
       });
 
-      const call = streamVideo.video.call("default", meetingId) as unknown as StreamCall;
+      const call = streamVideo.video.call(
+        "default",
+        meetingId
+      ) as unknown as StreamCall;
 
       if (hasUpdateCall(call)) {
         try {
@@ -151,6 +170,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // For ws / realtime client
       process.env.WS_NO_BUFFER_UTIL = "true";
       process.env.WS_NO_UTF_8_VALIDATE = "true";
 
@@ -163,7 +183,9 @@ export async function POST(req: NextRequest) {
 
           if (realtimeClient.updateSession) {
             await realtimeClient.updateSession({
-              instructions: agent.instructions,
+              instructions:
+                agent.instructions ||
+                "You are a helpful AI assistant for this meeting.",
             });
           }
 
@@ -180,12 +202,13 @@ export async function POST(req: NextRequest) {
        PARTICIPANT LEFT
     -------------------------------- */
     if (eventType === "call.session_participant_left") {
-      const event = payload as unknown as  CallSessionParticipantLeftEvent;
+      const event = payload as unknown as CallSessionParticipantLeftEvent;
       const meetingId = event.call_cid?.split(":")[1];
 
       if (meetingId) {
         try {
           await streamVideo.video.call("default", meetingId).end();
+          console.log("📞 Call ended after participant left");
         } catch (err) {
           console.error("end() error:", err);
         }
@@ -198,14 +221,16 @@ export async function POST(req: NextRequest) {
        CALL ENDED
     -------------------------------- */
     if (eventType === "call.session_ended") {
-      const event = payload as unknown as  CallEndedEvent;
-      const meetingId = event.call?.custom?.meetingId;
+      const event = payload as unknown as CallEndedEvent;
+      const meetingId = event.call?.custom?.meetingId as string | undefined;
 
       if (meetingId) {
         await db
           .update(meetings)
           .set({ status: "processing", endedAt: new Date() })
           .where(and(eq(meetings.id, meetingId), eq(meetings.status, "active")));
+
+        console.log("📊 Meeting moved to processing:", meetingId);
       }
 
       return NextResponse.json({ ok: true });
@@ -215,21 +240,26 @@ export async function POST(req: NextRequest) {
        TRANSCRIPTION READY
     -------------------------------- */
     if (eventType === "call.transcription_ready") {
-      const event = payload as unknown as  CallTranscriptionReadyEvent;
+      const event = payload as unknown as CallTranscriptionReadyEvent;
       const meetingId = event.call_cid?.split(":")[1];
 
       if (meetingId) {
         const [row] = await db
           .update(meetings)
-          .set({ transcriptUrl: event.call_transcription?.url })
+          .set({ transcriptUrl: event.call_transcription?.url ?? null })
           .where(eq(meetings.id, meetingId))
           .returning();
 
         if (row) {
           await inngest.send({
             name: "meetings/processing",
-            data: { meetingId: row.id, transcriptUrl: row.transcriptUrl },
+            data: {
+              meetingId: row.id,
+              transcriptUrl: row.transcriptUrl,
+            },
           });
+
+          console.log("📝 Transcript saved & processing triggered");
         }
       }
 
@@ -240,14 +270,16 @@ export async function POST(req: NextRequest) {
        RECORDING READY
     -------------------------------- */
     if (eventType === "call.recording_ready") {
-      const event = payload as unknown as  CallRecordingReadyEvent;
+      const event = payload as unknown as CallRecordingReadyEvent;
       const meetingId = event.call_cid?.split(":")[1];
 
       if (meetingId) {
         await db
           .update(meetings)
-          .set({ recordingUrl: event.call_recording?.url })
+          .set({ recordingUrl: event.call_recording?.url ?? null })
           .where(eq(meetings.id, meetingId));
+
+        console.log("🎥 Recording URL saved for meeting:", meetingId);
       }
 
       return NextResponse.json({ ok: true });
@@ -257,7 +289,7 @@ export async function POST(req: NextRequest) {
        STREAM CHAT MESSAGE
     -------------------------------- */
     if (eventType === "message.new") {
-      const event = payload as unknown as  MessageNewEvent;
+      const event = payload as unknown as MessageNewEvent;
 
       const userId = event.user?.id;
       const channelId = event.channel_id;
@@ -270,11 +302,20 @@ export async function POST(req: NextRequest) {
       const [meeting] = await db
         .select()
         .from(meetings)
-        .where(and(eq(meetings.id, channelId), not(eq(meetings.status, "cancelled"))));
+        .where(
+          and(
+            eq(meetings.id, channelId),
+            not(eq(meetings.status, "cancelled"))
+          )
+        );
 
       if (!meeting) return NextResponse.json({ ok: true });
 
-      const [agent] = await db.select().from(agents).where(eq(agents.id, meeting.agentId));
+      const [agent] = await db
+        .select()
+        .from(agents)
+        .where(eq(agents.id, meeting.agentId));
+
       if (!agent || userId === agent.id) return NextResponse.json({ ok: true });
 
       const channel = streamChat.channel("messaging", channelId);
@@ -293,7 +334,12 @@ export async function POST(req: NextRequest) {
       const completion = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: agent.instructions || "You are a helpful assistant." },
+          {
+            role: "system",
+            content:
+              agent.instructions ||
+              "You are a helpful assistant in this chat channel.",
+          },
           ...previousMessages,
           { role: "user", content: text },
         ],
@@ -301,13 +347,27 @@ export async function POST(req: NextRequest) {
 
       const reply = completion.choices?.[0]?.message?.content ?? "";
 
-      const avatar = generateAvatarUri({ seed: agent.name, variant: "botttsNeutral" });
-      await streamChat.upsertUser({ id: agent.id, name: agent.name, image: avatar });
+      if (reply) {
+        const avatar = generateAvatarUri({
+          seed: agent.name,
+          variant: "botttsNeutral",
+        });
 
-      await channel.sendMessage({
-        text: reply,
-        user: { id: agent.id, name: agent.name, image: avatar },
-      });
+        await streamChat.upsertUser({
+          id: agent.id,
+          name: agent.name,
+          image: avatar,
+        });
+
+        await channel.sendMessage({
+          text: reply,
+          user: {
+            id: agent.id,
+            name: agent.name,
+            image: avatar,
+          },
+        });
+      }
 
       return NextResponse.json({ ok: true });
     }
@@ -315,6 +375,7 @@ export async function POST(req: NextRequest) {
     /* -------------------------------
        UNKNOWN EVENT
     -------------------------------- */
+    console.log("Unhandled webhook event type:", eventType);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("🔥 WEBHOOK ERROR:", err);
@@ -325,14 +386,15 @@ export async function POST(req: NextRequest) {
 /* -------------------------------
    PUT (DEV)
 -------------------------------- */
+
 export async function PUT(req: NextRequest) {
   const raw = await req.text();
   let body: Record<string, unknown> = {};
 
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    //
+    // leave as empty/unused if not JSON
   }
 
   try {
