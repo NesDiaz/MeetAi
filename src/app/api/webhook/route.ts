@@ -31,9 +31,9 @@ export const runtime = "nodejs";
 ---------------------------------------- */
 
 interface StreamCall {
-  updateCall?: (args: {
-    members: { user_id: string; role: string }[];
-  }) => Promise<unknown>;
+  setMembers?: (
+    members: { user_id: string; role: string }[]
+  ) => Promise<unknown>;
 }
 
 interface StreamMessage {
@@ -49,15 +49,15 @@ function verifySignature(body: string, signature: string): boolean {
   try {
     return streamVideo.verifyWebhook(body, signature);
   } catch (err) {
-    console.error("verifySignature error:", err);
+    console.error("verifyWebhook error:", err);
     return false;
   }
 }
 
-function hasUpdateCall(
+function hasSetMembers(
   call: StreamCall
-): call is Required<Pick<StreamCall, "updateCall">> {
-  return typeof call.updateCall === "function";
+): call is Required<Pick<StreamCall, "setMembers">> {
+  return typeof call.setMembers === "function";
 }
 
 /* ----------------------------------------
@@ -140,27 +140,35 @@ export async function POST(req: NextRequest) {
         },
       ]);
 
-      console.log("Agent user upserted into Stream Video");
+      console.log("✔ Agent upserted into Stream Video");
 
+      /* CALL INSTANCE */
       const call = streamVideo.video.call(
         "default",
         meetingId
       ) as unknown as StreamCall;
 
-      /* ADD AGENT AS CALL MEMBER */
-      if (hasUpdateCall(call)) {
+      /* ----------------------------------------
+         FORCE-ADD AGENT TO CALL (SETMEMBERS)
+      ---------------------------------------- */
+      if (hasSetMembers(call)) {
         try {
-          await call.updateCall({
-            members: [{ user_id: agent.id, role: "video-agent" }],
-          });
-          console.log("Agent added as call member");
+          await call.setMembers([
+            {
+              user_id: agent.id,
+              role: "video-agent",
+            },
+          ]);
+          console.log("✔ Agent added to call via setMembers()");
         } catch (err) {
-          console.error("updateCall error:", err);
+          console.error("❌ setMembers error:", err);
         }
+      } else {
+        console.error("❌ setMembers() not available on call");
       }
 
       /* ----------------------------------------
-         CONNECT AI AGENT — CORRECT API FOR v0.3.x
+         CONNECT AI AGENT (Realtime Websocket)
       ---------------------------------------- */
       try {
         const agentToken = streamVideo.generateUserToken({
@@ -182,9 +190,9 @@ export async function POST(req: NextRequest) {
         });
 
         realtimeClient.connect();
-        console.log("🤖 Agent connected using createRealtimeClient()");
+        console.log("🤖 Agent connected via createRealtimeClient()");
       } catch (err) {
-        console.error("Agent realtime connection error:", err);
+        console.error("❌ Agent realtime connection error:", err);
       }
 
       return NextResponse.json({ ok: true });
@@ -201,7 +209,7 @@ export async function POST(req: NextRequest) {
         try {
           await streamVideo.video.call("default", meetingId).end();
         } catch (err) {
-          console.error("end() error:", err);
+          console.error("❌ end() error:", err);
         }
       }
 
@@ -274,7 +282,7 @@ export async function POST(req: NextRequest) {
     }
 
     /* ----------------------------------------
-       CHAT MESSAGE
+       CHAT MESSAGE → AI RESPONSE
     ---------------------------------------- */
     if (eventType === "message.new") {
       const event = payload as unknown as MessageNewEvent;
