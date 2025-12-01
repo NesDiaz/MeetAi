@@ -59,22 +59,44 @@ export const CallConnect = ({
 
   }, [userId, userName, userImage, generateToken]);
 
-  useEffect(() => { 
+  useEffect(() => {
     if (!client) return;
-
+  
     const _call = client.call("default", meetingId);
-    _call.camera.disable();
-    _call.microphone.disable();
-    setCall(_call);
-
+  
+    async function doJoin() {
+      await _call.join(); // <——— REQUIRED!
+      _call.camera.disable();
+      _call.microphone.disable();
+      setCall(_call);
+    }
+  
+    doJoin();
+  
     return () => {
       if (_call.state.callingState !== CallingState.LEFT) {
         _call.leave();
         _call.endCall();
-        setCall(undefined);
       }
-    }
+    };
   }, [client, meetingId]);
+  
+  // useEffect(() => { 
+  //   if (!client) return;
+
+  //   const _call = client.call("default", meetingId);
+  //   _call.camera.disable();
+  //   _call.microphone.disable();
+  //   setCall(_call);
+
+  //   return () => {
+  //     if (_call.state.callingState !== CallingState.LEFT) {
+  //       _call.leave();
+  //       _call.endCall();
+  //       setCall(undefined);
+  //     }
+  //   }
+  // }, [client, meetingId]);
 
 
    if (!client || !call) {
