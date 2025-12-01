@@ -8,7 +8,7 @@ import type {
   CallEndedEvent,
   CallTranscriptionReadyEvent,
   CallRecordingReadyEvent,
-  CallSessionParticipantLeftEvent,
+ // CallSessionParticipantLeftEvent,
   CallSessionStartedEvent,
 } from "@stream-io/node-sdk";
 
@@ -184,11 +184,26 @@ export async function POST(req: NextRequest) {
 /* -------------------------------
    PARTICIPANT LEFT
 -------------------------------- */
-if (eventType === "call.session_participant_left") {
-  const event = payload as unknown as CallSessionParticipantLeftEvent;
+// if (eventType === "call.session_participant_left") {
+//   const event = payload as unknown as CallSessionParticipantLeftEvent;
 
-  const callCid = event.call_cid as string | undefined;
-  const meetingId = callCid?.split(":")[1];
+//   const callCid = event.call_cid as string | undefined;
+//   const meetingId = callCid?.split(":")[1];
+
+//   if (meetingId) {
+//     try {
+//       await streamVideo.video.call("default", meetingId).end();
+//     } catch {}
+//   }
+
+//   return NextResponse.json({ ok: true });
+// }
+if (eventType === "call.session_participant_left") {
+  const callCid = (payload as { call_cid?: string }).call_cid;
+
+  const meetingId = callCid?.includes(":")
+    ? callCid.split(":")[1]
+    : undefined;
 
   if (meetingId) {
     try {
