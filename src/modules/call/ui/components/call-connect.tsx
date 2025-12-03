@@ -38,68 +38,49 @@ export const CallConnect = ({
   const [client, setClient] = useState<StreamVideoClient>();
   const [call, setCall] = useState<Call>();
 
-  // ✅ Create or reuse Stream client
+  // Create Stream client
   useEffect(() => {
     const _client = new StreamVideoClient({
       apiKey: process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!,
-      user:  {
+      user: {
         id: userId,
         name: userName,
         image: userImage,
       },
       tokenProvider: generateToken,
-    })
-    
+    });
+
     setClient(_client);
 
     return () => {
       _client.disconnectUser();
-      setClient(undefined);
     };
-
   }, [userId, userName, userImage, generateToken]);
 
+  // Join the call
   useEffect(() => {
     if (!client) return;
-  
+
     const _call = client.call("default", meetingId);
-  
+
     async function doJoin() {
-      await _call.join(); // <——— REQUIRED!
+      await _call.join();
       _call.camera.disable();
       _call.microphone.disable();
+
       setCall(_call);
     }
-  
+
     doJoin();
-  
+
     return () => {
       if (_call.state.callingState !== CallingState.LEFT) {
         _call.leave();
-        _call.endCall();
       }
     };
   }, [client, meetingId]);
-  
-  // useEffect(() => { 
-  //   if (!client) return;
 
-  //   const _call = client.call("default", meetingId);
-  //   _call.camera.disable();
-  //   _call.microphone.disable();
-  //   setCall(_call);
-
-  //   return () => {
-  //     if (_call.state.callingState !== CallingState.LEFT) {
-  //       _call.leave();
-  //       _call.endCall();
-  //       setCall(undefined);
-  //     }
-  //   }
-  // }, [client, meetingId]);
-
-
-   if (!client || !call) {
+  if (!client || !call) {
     return (
       <div className="flex h-screen items-center justify-center bg-radial from-sidebar-accent to-sidebar">
         <LoaderIcon className="size-6 animate-spin text-white" />
@@ -107,7 +88,6 @@ export const CallConnect = ({
     );
   }
 
-  // ✅ Render Stream UI
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
