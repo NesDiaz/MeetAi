@@ -1,9 +1,8 @@
 import OpenAI from "openai";
 import { and, eq, not } from "drizzle-orm";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-import type {
+import {
   MessageNewEvent,
   CallEndedEvent,
   CallTranscriptionReadyEvent,
@@ -18,38 +17,15 @@ import { streamVideo } from "@/lib/stream-video";
 import { streamChat } from "@/lib/stream-chat";
 import { inngest } from "@/inngest/client";
 import { generateAvatarUri } from "@/lib/avatar";
-import type { ChatCompletionMessageParam } from "openai/resources/index.mjs";
+import { ChatCompletionMessageParam } from "openai/resources/index.mjs";
 
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
 export const runtime = "nodejs";
 
-/* =====================================================
-   TYPES
-====================================================== */
-
-interface StreamCall {
-  updateCall?: (args: {
-    members: { user_id: string; role: string }[];
-  }) => Promise<unknown>;
-}
-
-interface StreamMessage {
-  text?: string | null;
-  user?: { id?: string };
-}
-
-type WebhookPayload = {
-  type?: string;
-  call_cid?: string;
-  [key: string]: unknown;
-};
-
-/* =====================================================
-   HELPERS
-====================================================== */
-
-function verifySignature(body: string, signature: string): boolean {
+// -------------------------------
+// HELPER: verify Stream signature
+// -------------------------------
+function verifySignature(body: string, signature: string) {
   try {
     return streamVideo.verifyWebhook(body, signature);
   } catch (err) {
@@ -58,60 +34,94 @@ function verifySignature(body: string, signature: string): boolean {
   }
 }
 
-function hasUpdateCall(
-  call: StreamCall
-): call is Required<Pick<StreamCall, "updateCall">> {
-  return typeof call.updateCall === "function";
+// -------------------------------
+// TYPE GUARDS
+// -------------------------------
+interface AddMembersCapable {
+  addMembers?: (ids: string[]) => Promise<void>;
 }
 
-/* =====================================================
-   POST: MAIN WEBHOOK HANDLER
-====================================================== */
+function hasAddMembers(call: unknown): call is AddMembersCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "addMembers" in call &&
+    typeof (call as AddMembersCapable).addMembers === "function"
+  );
+}
 
+interface UpdateCallCapable {
+  updateCall?: (data: unknown) => Promise<void>;
+}
+
+function hasUpdateCall(call: unknown): call is UpdateCallCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "updateCall" in call &&
+    typeof (call as UpdateCallCapable).updateCall === "function"
+  );
+}
+
+interface OpenAIConnectCapable {
+  connectOpenAi?: (opts: { openAiApiKey: string; agentUserId: string }) => Promise<any>;
+}
+
+function hasConnectOpenAi(call: unknown): call is OpenAIConnectCapable {
+  return (
+    typeof call === "object" &&
+    call !== null &&
+    "connectOpenAi" in call &&
+    typeof (call as OpenAIConnectCapable).connectOpenAi === "function"
+  );
+}
+
+// -------------------------------
+// MAIN WEBHOOK
+// -------------------------------
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
+  console.log("📩 RAW BODY:", rawBody.slice(0, 1000));
 
-  const signature =
-    req.headers.get("x-signature") ?? req.headers.get("x-stream-signature");
+  const signature = req.headers.get("x-signature");
+  const apiKey = req.headers.get("x-api-key");
 
-  if (!signature) {
-    console.warn("Webhook missing signature header");
-    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+  if (!signature || !apiKey) {
+    console.log("❌ Missing headers", { signature: !!signature, apiKey: !!apiKey });
+    return NextResponse.json({ error: "Missing headers" }, { status: 400 });
   }
 
   if (!verifySignature(rawBody, signature)) {
-    console.warn("Webhook signature verification failed");
+    console.log("❌ Invalid signature");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  let payload: WebhookPayload;
+  let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(rawBody) as WebhookPayload;
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch (err) {
-    console.error("Webhook JSON parse error:", err);
-    return NextResponse.json({ error: "Bad JSON" }, { status: 400 });
+    console.error("❌ Bad JSON:", err);
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   const eventType = payload.type as string | undefined;
-  console.log("📦 Webhook Event:", eventType);
+  console.log("📦 Event:", eventType);
 
   try {
-    /* =====================================================
-       1) CALL SESSION STARTED → MARK ACTIVE + ADD AGENT
-    ====================================================== */
+    // -------------------------------
+    // CALL STARTED
+    // -------------------------------
     if (eventType === "call.session_started") {
-      const event = payload as unknown as CallSessionStartedEvent;
-      const meetingId = event.call?.custom?.meetingId as string | undefined;
+      const event = payload as CallSessionStartedEvent;
+      console.log("▶ call.session_started:", event.call_cid);
 
-      console.log("🔔 call.session_started for meeting:", meetingId);
-
+      const meetingId = event.call?.custom?.meetingId;
       if (!meetingId) {
-        console.log("No meetingId on call.custom; ignoring.");
-        return NextResponse.json({ ok: true });
+        console.warn("❌ Missing meetingId");
+        return NextResponse.json({ error: "Missing meetingId" }, { status: 400 });
       }
 
-      // Find meeting that isn't completed / active / cancelled / processing
-      const [meeting] = await db
+      const [existingMeeting] = await db
         .select()
         .from(meetings)
         .where(
@@ -124,267 +134,219 @@ export async function POST(req: NextRequest) {
           )
         );
 
-      if (!meeting) {
-        console.log("No matching meeting found or already finished:", meetingId);
-        return NextResponse.json({ ok: true });
+      if (!existingMeeting) {
+        console.warn("❌ Meeting not found:", meetingId);
+        return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
       }
 
-      // Mark meeting as active
       await db
         .update(meetings)
         .set({ status: "active", startedAt: new Date() })
         .where(eq(meetings.id, meetingId));
 
-      console.log("✅ Meeting marked active:", meetingId);
-
-      // Fetch agent
-      const [agent] = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, meeting.agentId));
-
+      const [agent] = await db.select().from(agents).where(eq(agents.id, existingMeeting.agentId));
       if (!agent) {
-        console.log("No agent found for meeting:", meetingId);
-        return NextResponse.json({ ok: true });
+        console.warn("❌ Agent not found:", existingMeeting.agentId);
+        return NextResponse.json({ error: "Agent not found" }, { status: 404 });
       }
 
-      // Upsert agent user into Stream Video
       const avatarUrl = generateAvatarUri({
         seed: agent.name,
         variant: "botttsNeutral",
       });
 
-      await streamVideo.upsertUsers([
-        {
-          id: agent.id,
-          name: agent.name,
-          role: "video-agent",
-          image: avatarUrl,
-        },
-      ]);
+      await streamChat.upsertUser({
+        id: agent.id,
+        name: agent.name,
+        image: avatarUrl,
+      });
 
-      console.log("👤 Agent user upserted into Stream Video:", agent.id);
+      const call = streamVideo.video.call("default", meetingId);
 
-      // Add agent as call member
-      const call = streamVideo.video.call(
-        "default",
-        meetingId
-      ) as unknown as StreamCall;
-
+      // Add agent to call
       if (hasUpdateCall(call)) {
         try {
           await call.updateCall({
-            members: [
-              {
-                user_id: agent.id,
-                role: "video-agent",
-              },
-            ],
+            members: [{ user_id: agent.id, role: "video-agent" }],
           });
-          console.log("➕ Agent added as call member:", agent.id);
+          console.log("➕ Added agent to call");
         } catch (err) {
-          console.error("updateCall error when adding agent:", err);
+          console.error("⚠️ updateCall error:", err);
         }
       } else {
-        console.warn(
-          "⚠ call.updateCall is not available on this Stream SDK version"
-        );
+        console.log("ℹ️ updateCall not available in SDK");
       }
 
-      return NextResponse.json({ ok: true });
+      // Fix Vercel WS
+      process.env.WS_NO_BUFFER_UTIL = "true";
+      process.env.WS_NO_UTF_8_VALIDATE = "true";
+
+      // Connect OpenAI realtime agent
+      try {
+        if (hasConnectOpenAi(call)) {
+          const realtimeClient = await call.connectOpenAi({
+            openAiApiKey: process.env.OPENAI_API_KEY!,
+            agentUserId: agent.id,
+          });
+          await realtimeClient.updateSession({ instructions: agent.instructions });
+          console.log("✅ Realtime agent connected");
+        } else {
+          console.log("ℹ️ connectOpenAi not available on call object");
+        }
+      } catch (err) {
+        console.error("❌ OpenAI realtime error:", err);
+      }
     }
 
-    /* =====================================================
-       2) PARTICIPANT LEFT → END CALL
-    ====================================================== */
-    if (eventType === "call.session_participant_left") {
-      const event = payload as unknown as CallSessionParticipantLeftEvent;
-      const callCid = event.call_cid as string | undefined;
-
-      console.log("👋 call.session_participant_left, callCid:", callCid);
-
-      const meetingId =
-        callCid && callCid.includes(":") ? callCid.split(":")[1] : undefined;
+    // -------------------------------
+    // PARTICIPANT LEFT
+    // -------------------------------
+    else if (eventType === "call.session_participant_left") {
+      const event = payload as CallSessionParticipantLeftEvent;
+      const meetingId = event.call_cid?.split?.(":")?.[1];
+      console.log("⚠ Participant left:", meetingId);
 
       if (meetingId) {
         try {
           await streamVideo.video.call("default", meetingId).end();
-          console.log("📞 Call ended after participant left:", meetingId);
+          console.log("🛑 Call ended:", meetingId);
         } catch (err) {
-          console.error("Error ending call on participant left:", err);
+          console.error("⚠️ end() error:", err);
         }
       }
-
-      return NextResponse.json({ ok: true });
     }
 
-    /* =====================================================
-       3) CALL ENDED → UPDATE DB
-    ====================================================== */
-    if (eventType === "call.session_ended") {
-      const event = payload as unknown as CallEndedEvent;
-      const meetingId = event.call?.custom?.meetingId as string | undefined;
-
-      console.log("🛑 call.session_ended for meeting:", meetingId);
+    // -------------------------------
+    // CALL ENDED → PROCESSING
+    // -------------------------------
+    else if (eventType === "call.session_ended") {
+      const event = payload as CallEndedEvent;
+      const meetingId = event.call?.custom?.meetingId;
+      console.log("🛑 call.session_ended:", meetingId);
 
       if (meetingId) {
         await db
           .update(meetings)
           .set({ status: "processing", endedAt: new Date() })
           .where(and(eq(meetings.id, meetingId), eq(meetings.status, "active")));
+        console.log("🔄 Meeting set to processing:", meetingId);
       }
-
-      return NextResponse.json({ ok: true });
     }
 
-    /* =====================================================
-       4) TRANSCRIPTION READY → SAVE URL & TRIGGER INGEST
-    ====================================================== */
-    if (eventType === "call.transcription_ready") {
-      const event = payload as unknown as CallTranscriptionReadyEvent;
-      const meetingId = event.call_cid?.split(":")[1];
-
-      console.log("📝 call.transcription_ready for meeting:", meetingId);
+    // -------------------------------
+    // TRANSCRIPTION READY
+    // -------------------------------
+    else if (eventType === "call.transcription_ready") {
+      const event = payload as CallTranscriptionReadyEvent;
+      const meetingId = event.call_cid?.split?.(":")?.[1];
+      console.log("📝 transcription_ready:", meetingId);
 
       if (meetingId) {
         const [row] = await db
           .update(meetings)
-          .set({ transcriptUrl: event.call_transcription?.url ?? null })
+          .set({ transcriptUrl: event.call_transcription?.url })
           .where(eq(meetings.id, meetingId))
           .returning();
 
         if (row) {
           await inngest.send({
             name: "meetings/processing",
-            data: {
-              meetingId: row.id,
-              transcriptUrl: row.transcriptUrl,
-            },
+            data: { meetingId: row.id, transcriptUrl: row.transcriptUrl },
           });
-          console.log("📤 Inngest processing triggered for meeting:", row.id);
+          console.log("📨 Inngest processing event sent");
         }
       }
-
-      return NextResponse.json({ ok: true });
     }
 
-    /* =====================================================
-       5) RECORDING READY → SAVE URL
-    ====================================================== */
-    if (eventType === "call.recording_ready") {
-      const event = payload as unknown as CallRecordingReadyEvent;
-      const meetingId = event.call_cid?.split(":")[1];
-
-      console.log("🎥 call.recording_ready for meeting:", meetingId);
+    // -------------------------------
+    // RECORDING READY
+    // -------------------------------
+    else if (eventType === "call.recording_ready") {
+      const event = payload as CallRecordingReadyEvent;
+      const meetingId = event.call_cid?.split?.(":")?.[1];
+      console.log("🎥 recording_ready:", meetingId);
 
       if (meetingId) {
         await db
           .update(meetings)
-          .set({ recordingUrl: event.call_recording?.url ?? null })
+          .set({ recordingUrl: event.call_recording?.url })
           .where(eq(meetings.id, meetingId));
+        console.log("🎥 Recording saved");
       }
-
-      return NextResponse.json({ ok: true });
     }
 
-    /* =====================================================
-       6) CHAT MESSAGE → TEXT AI AGENT RESPONSE
-    ====================================================== */
-    if (eventType === "message.new") {
-      const event = payload as unknown as MessageNewEvent;
-
+    // -------------------------------
+    // STREAM CHAT MESSAGE → USE OPENAI
+    // -------------------------------
+    else if (eventType === "message.new") {
+      const event = payload as MessageNewEvent;
       const userId = event.user?.id;
       const channelId = event.channel_id;
-      const text = (event.message?.text ?? "").trim();
+      const text = event.message?.text ?? "";
 
-      console.log("💬 message.new on channel:", channelId, "from:", userId);
+      console.log("💬 message.new:", { userId, channelId, text });
 
       if (!userId || !channelId || !text) {
-        console.log("Missing userId, channelId or text; ignoring.");
-        return NextResponse.json({ ok: true });
+        console.warn("❌ Bad message.new fields");
+      } else {
+        const [meeting] = await db
+          .select()
+          .from(meetings)
+          .where(and(eq(meetings.id, channelId), not(eq(meetings.status, "cancelled"))));
+
+        if (!meeting) {
+          console.warn("❌ Meeting not found for channel:", channelId);
+        } else {
+          const [agent] = await db.select().from(agents).where(eq(agents.id, meeting.agentId));
+          if (!agent) {
+            console.warn("❌ Agent missing:", meeting.agentId);
+          } else if (userId === agent.id) {
+            console.log("ℹ Agent message ignored");
+          } else {
+            const channel = streamChat.channel("messaging", channelId);
+            await channel.watch();
+
+            const previousMessages: ChatCompletionMessageParam[] = channel.state.messages
+              .slice(-5)
+              .filter((m) => m.text?.trim())
+              .map((m) => ({
+                role: m.user?.id === agent.id ? "assistant" : "user",
+                content: m.text ?? "",
+              }));
+
+            const completion = await openaiClient.chat.completions.create({
+              model: "gpt-4o",
+              messages: [
+                { role: "system", content: agent.instructions || "You are a helpful assistant." },
+                ...previousMessages,
+                { role: "user", content: text },
+              ],
+            });
+
+            const reply = completion.choices?.[0]?.message?.content ?? "";
+            console.log("🤖 Reply:", reply.slice(0, 200));
+
+            const avatar = generateAvatarUri({ seed: agent.name, variant: "botttsNeutral" });
+            await streamChat.upsertUser({ id: agent.id, name: agent.name, image: avatar });
+
+            await channel.sendMessage({
+              text: reply,
+              user: { id: agent.id, name: agent.name, image: avatar },
+            });
+
+            console.log("✅ Reply sent");
+          }
+        }
       }
-
-      const [meeting] = await db
-        .select()
-        .from(meetings)
-        .where(eq(meetings.id, channelId));
-
-      if (!meeting) {
-        console.log("No meeting found for channel:", channelId);
-        return NextResponse.json({ ok: true });
-      }
-
-      const [agent] = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, meeting.agentId));
-
-      if (!agent) {
-        console.log("No agent found for meeting:", meeting.id);
-        return NextResponse.json({ ok: true });
-      }
-
-      // Do not respond to own messages
-      if (userId === agent.id) {
-        return NextResponse.json({ ok: true });
-      }
-
-      const channel = streamChat.channel("messaging", channelId);
-      await channel.watch();
-
-      const messages = (channel.state.messages ?? []) as StreamMessage[];
-
-      const previousMessages: ChatCompletionMessageParam[] = messages
-        .slice(-5)
-        .filter((m) => m.text && m.text.trim())
-        .map((m) => ({
-          role: m.user?.id === agent.id ? "assistant" : "user",
-          content: m.text ?? "",
-        }));
-
-      const completion = await openaiClient.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content:
-              agent.instructions ||
-              "You are a helpful assistant in this chat channel.",
-          },
-          ...previousMessages,
-          { role: "user", content: text },
-        ],
-      });
-
-      const reply = completion.choices?.[0]?.message?.content ?? "";
-
-      if (reply) {
-        const avatar = generateAvatarUri({
-          seed: agent.name,
-          variant: "botttsNeutral",
-        });
-
-        await streamChat.upsertUser({
-          id: agent.id,
-          name: agent.name,
-          image: avatar,
-        });
-
-        await channel.sendMessage({
-          text: reply,
-          user: { id: agent.id, name: agent.name, image: avatar },
-        });
-
-        console.log("🤖 Agent replied in chat on channel:", channelId);
-      }
-
-      return NextResponse.json({ ok: true });
     }
 
-    /* =====================================================
-       7) FALLBACK: UNKNOWN EVENT
-    ====================================================== */
-    console.log("Unhandled webhook event type:", eventType);
+    // -------------------------------
+    // UNKNOWN EVENT
+    // -------------------------------
+    else {
+      console.log("ℹ️ Unhandled event:", eventType);
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("🔥 WEBHOOK ERROR:", err);
@@ -392,25 +354,22 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/* =====================================================
-   PUT: DEV TESTING
-====================================================== */
-
+// -------------------------------
+// DEV TOOL: PUT → forward to Inngest
+// -------------------------------
 export async function PUT(req: NextRequest) {
   const raw = await req.text();
   let body: Record<string, unknown> = {};
 
   try {
     body = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    // non-JSON is fine for test
-  }
+  } catch {}
 
   try {
     await inngest.send({ name: "webhook/put", data: body });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("PUT /api/webhook error:", err);
+    console.error("❌ PUT error:", err);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
