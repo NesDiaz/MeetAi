@@ -35,23 +35,10 @@ function verifySignature(body: string, signature: string) {
 }
 
 // -------------------------------
-// TYPE GUARDS
+// TYPE GUARDS / SUPPORT TYPES
 // -------------------------------
-interface AddMembersCapable {
-  addMembers?: (ids: string[]) => Promise<void>;
-}
-
-function hasAddMembers(call: unknown): call is AddMembersCapable {
-  return (
-    typeof call === "object" &&
-    call !== null &&
-    "addMembers" in call &&
-    typeof (call as AddMembersCapable).addMembers === "function"
-  );
-}
-
 interface UpdateCallCapable {
-  updateCall?: (data: unknown) => Promise<void>;
+  updateCall: (data: unknown) => Promise<void>;
 }
 
 function hasUpdateCall(call: unknown): call is UpdateCallCapable {
@@ -63,8 +50,16 @@ function hasUpdateCall(call: unknown): call is UpdateCallCapable {
   );
 }
 
+interface RealtimeClientLike {
+  updateSession?: (data: { instructions?: string | null }) => Promise<void>;
+  send?: (msg: { type: string; text?: string }) => Promise<void>;
+}
+
 interface OpenAIConnectCapable {
-  connectOpenAi?: (opts: { openAiApiKey: string; agentUserId: string }) => Promise<any>;
+  connectOpenAi: (opts: {
+    openAiApiKey: string;
+    agentUserId: string;
+  }) => Promise<RealtimeClientLike>;
 }
 
 function hasConnectOpenAi(call: unknown): call is OpenAIConnectCapable {
@@ -108,11 +103,11 @@ export async function POST(req: NextRequest) {
   console.log("📦 Event:", eventType);
 
   try {
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // CALL STARTED
-    // -------------------------------
+    // ----------------------------------------------------------------------
     if (eventType === "call.session_started") {
-      const event = payload as CallSessionStartedEvent;
+      const event = payload as unknown as CallSessionStartedEvent;
       console.log("▶ call.session_started:", event.call_cid);
 
       const meetingId = event.call?.custom?.meetingId;
@@ -163,11 +158,16 @@ export async function POST(req: NextRequest) {
 
       const call = streamVideo.video.call("default", meetingId);
 
-      // Add agent to call
+      // Add agent to call via updateCall if available
       if (hasUpdateCall(call)) {
         try {
           await call.updateCall({
-            members: [{ user_id: agent.id, role: "video-agent" }],
+            members: [
+              {
+                user_id: agent.id,
+                role: "video-agent",
+              },
+            ],
           });
           console.log("➕ Added agent to call");
         } catch (err) {
@@ -188,7 +188,19 @@ export async function POST(req: NextRequest) {
             openAiApiKey: process.env.OPENAI_API_KEY!,
             agentUserId: agent.id,
           });
-          await realtimeClient.updateSession({ instructions: agent.instructions });
+
+          if (realtimeClient.updateSession) {
+            await realtimeClient.updateSession({ instructions: agent.instructions });
+          }
+
+          // 🔥 CRITICAL: send a "start" message so the agent actually speaks
+          if (realtimeClient.send) {
+            await realtimeClient.send({ type: "input_text", text: "start" });
+            console.log("▶ Sent start to realtime agent");
+          } else {
+            console.log("ℹ️ realtimeClient.send not available");
+          }
+
           console.log("✅ Realtime agent connected");
         } else {
           console.log("ℹ️ connectOpenAi not available on call object");
@@ -198,11 +210,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // PARTICIPANT LEFT
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else if (eventType === "call.session_participant_left") {
-      const event = payload as CallSessionParticipantLeftEvent;
+      const event = payload as unknown as CallSessionParticipantLeftEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
       console.log("⚠ Participant left:", meetingId);
 
@@ -216,11 +228,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // CALL ENDED → PROCESSING
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else if (eventType === "call.session_ended") {
-      const event = payload as CallEndedEvent;
+      const event = payload as unknown as CallEndedEvent;
       const meetingId = event.call?.custom?.meetingId;
       console.log("🛑 call.session_ended:", meetingId);
 
@@ -229,16 +241,18 @@ export async function POST(req: NextRequest) {
           .update(meetings)
           .set({ status: "processing", endedAt: new Date() })
           .where(and(eq(meetings.id, meetingId), eq(meetings.status, "active")));
+
         console.log("🔄 Meeting set to processing:", meetingId);
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // TRANSCRIPTION READY
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else if (eventType === "call.transcription_ready") {
-      const event = payload as CallTranscriptionReadyEvent;
+      const event = payload as unknown as CallTranscriptionReadyEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
+
       console.log("📝 transcription_ready:", meetingId);
 
       if (meetingId) {
@@ -253,16 +267,17 @@ export async function POST(req: NextRequest) {
             name: "meetings/processing",
             data: { meetingId: row.id, transcriptUrl: row.transcriptUrl },
           });
+
           console.log("📨 Inngest processing event sent");
         }
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // RECORDING READY
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else if (eventType === "call.recording_ready") {
-      const event = payload as CallRecordingReadyEvent;
+      const event = payload as unknown as CallRecordingReadyEvent;
       const meetingId = event.call_cid?.split?.(":")?.[1];
       console.log("🎥 recording_ready:", meetingId);
 
@@ -271,15 +286,16 @@ export async function POST(req: NextRequest) {
           .update(meetings)
           .set({ recordingUrl: event.call_recording?.url })
           .where(eq(meetings.id, meetingId));
+
         console.log("🎥 Recording saved");
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // STREAM CHAT MESSAGE → USE OPENAI
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else if (eventType === "message.new") {
-      const event = payload as MessageNewEvent;
+      const event = payload as unknown as MessageNewEvent;
       const userId = event.user?.id;
       const channelId = event.channel_id;
       const text = event.message?.text ?? "";
@@ -317,7 +333,10 @@ export async function POST(req: NextRequest) {
             const completion = await openaiClient.chat.completions.create({
               model: "gpt-4o",
               messages: [
-                { role: "system", content: agent.instructions || "You are a helpful assistant." },
+                {
+                  role: "system",
+                  content: agent.instructions || "You are a helpful assistant.",
+                },
                 ...previousMessages,
                 { role: "user", content: text },
               ],
@@ -326,8 +345,16 @@ export async function POST(req: NextRequest) {
             const reply = completion.choices?.[0]?.message?.content ?? "";
             console.log("🤖 Reply:", reply.slice(0, 200));
 
-            const avatar = generateAvatarUri({ seed: agent.name, variant: "botttsNeutral" });
-            await streamChat.upsertUser({ id: agent.id, name: agent.name, image: avatar });
+            const avatar = generateAvatarUri({
+              seed: agent.name,
+              variant: "botttsNeutral",
+            });
+
+            await streamChat.upsertUser({
+              id: agent.id,
+              name: agent.name,
+              image: avatar,
+            });
 
             await channel.sendMessage({
               text: reply,
@@ -340,9 +367,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // -------------------------------
+    // ----------------------------------------------------------------------
     // UNKNOWN EVENT
-    // -------------------------------
+    // ----------------------------------------------------------------------
     else {
       console.log("ℹ️ Unhandled event:", eventType);
     }
@@ -354,16 +381,18 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// -------------------------------
+// -------------------------------------------------------
 // DEV TOOL: PUT → forward to Inngest
-// -------------------------------
+// -------------------------------------------------------
 export async function PUT(req: NextRequest) {
   const raw = await req.text();
   let body: Record<string, unknown> = {};
 
   try {
     body = JSON.parse(raw) as Record<string, unknown>;
-  } catch {}
+  } catch {
+    // ignore JSON parse error for dev tool
+  }
 
   try {
     await inngest.send({ name: "webhook/put", data: body });
