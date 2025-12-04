@@ -17,9 +17,7 @@ export const CallUI = ({ meetingName }: Props) => {
   const [show, setShow] = useState<"lobby" | "call" | "ended">("lobby");
   const [isJoining, setIsJoining] = useState(false);
 
-  // -----------------------------------------------------
-  // 1️⃣ Effect: listen for "call.ended" — MUST always run
-  // -----------------------------------------------------
+  // Listen for automatic call-end events
   useEffect(() => {
     if (!call) return;
 
@@ -31,9 +29,6 @@ export const CallUI = ({ meetingName }: Props) => {
     };
   }, [call]);
 
-  // -----------------------------------------------------
-  // 2️⃣ Only AFTER hooks run, we can conditionally return
-  // -----------------------------------------------------
   if (!call) return null;
 
   const handleJoin = async () => {
@@ -78,7 +73,6 @@ export const CallUI = ({ meetingName }: Props) => {
     </StreamTheme>
   );
 };
-
 
 
 // import { StreamTheme, useCall } from "@stream-io/video-react-sdk";

@@ -56,7 +56,7 @@ export const DashboardCommand = ({ open, setOpen }: Props) => {
           {meetings.data?.items.map((meeting) => (
             <CommandItem
               onSelect={() => {
-                router.push(`/meetings/${meeting.id}`);
+                router.push(`/call/${meeting.id}`);
                 setOpen(false);
               }}
               key={meeting.id}
