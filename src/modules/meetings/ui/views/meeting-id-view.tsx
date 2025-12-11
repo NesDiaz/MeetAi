@@ -118,7 +118,6 @@ const handleCancelMeeting = async () => {
             meetingId={meetingId}
             onCancelMeeting={handleCancelMeeting}
             isCancelling={cancelMeeting.isPending}
-            //isCancelling={false}
         />)}
     </div>
     </>
