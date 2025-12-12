@@ -1,5 +1,6 @@
 import { inngest } from "@/inngest/client";
 import { streamVideo } from "@/lib/stream-video";
+import { streamChat } from "@/lib/stream-chat";
 
 export const agentStart = inngest.createFunction(
   { id: "agent/start" },
@@ -13,7 +14,7 @@ export const agentStart = inngest.createFunction(
 
     const call = streamVideo.video.call("default", meetingId);
 
-    // 1️⃣ Connect agent
+    // 1️⃣ Connect agent to the call
     const realtime = await streamVideo.video.connectOpenAi({
       call,
       agentUserId: agentId,
@@ -22,7 +23,7 @@ export const agentStart = inngest.createFunction(
     });
 
     // 2️⃣ Enable voice + listening
-    realtime.updateSession({
+    await realtime.updateSession({
       instructions,
       modalities: ["text", "audio"],
       voice: "alloy",
@@ -32,7 +33,14 @@ export const agentStart = inngest.createFunction(
       },
     });
 
-    // ⛔ NO sendEvent — not supported
+    // 3️⃣ FORCE the agent to speak
+    const channel = streamChat.channel("messaging", meetingId);
+    await channel.watch();
+
+    await channel.sendMessage({
+      text: "Please introduce yourself to the meeting.",
+      user: { id: "system" },
+    });
 
     return { ok: true };
   }
