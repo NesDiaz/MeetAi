@@ -28,3 +28,4 @@ export const CallActive = ({ onLeave, meetingName }: Props) => {
         </div>
     );
 };
+
