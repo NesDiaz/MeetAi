@@ -13,9 +13,8 @@ export const CallUI = ({ meetingName }: Props) => {
   const [show, setShow] = useState<"lobby" | "call" | "ended">("lobby");
   const [isJoining, setIsJoining] = useState(false);
 
-  if (!call) return null; // 🔒 Prevent premature render
-
-  const handleJoin = async () => {
+   const handleJoin = async () => {
+     if (!call) return;
     if (isJoining) return;
     const state = call.state.callingState;
 
@@ -34,12 +33,11 @@ export const CallUI = ({ meetingName }: Props) => {
   };
 
   const handleLeave = () => {
+    if (!call) return;
     call.endCall();
     setShow("ended");
   };
 
-  // 🔄 Listen for automatic call-end events
-  call.on("call.ended", () => setShow("ended"));
 
   return (
     <StreamTheme className="h-full">
