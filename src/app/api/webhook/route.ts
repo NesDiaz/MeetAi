@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, not } from "drizzle-orm";
+import { and, eq, } from "drizzle-orm";
 import {
   MessageNewEvent,
   CallEndedEvent,
@@ -52,54 +52,119 @@ export async function POST(req: NextRequest) {
   }
 
   const eventType = (payload as Record<string, unknown>)?.type;
+//import { and, eq, not } from "drizzle-orm";
+//   if (eventType === "call.session_started") {
+//     const event = payload as CallSessionStartedEvent;
+//     const meetingId = event.call?.custom?.meetingId;
+//     if (!meetingId) {
+//       return NextResponse.json({ error: "Missing meetingId" }, { status: 400 });
+//     }
+//     console.log("SESSION STARTED for:", meetingId);
 
-  if (eventType === "call.session_started") {
-    const event = payload as CallSessionStartedEvent;
-    const meetingId = event.call?.custom?.meetingId;
-    if (!meetingId) {
-      return NextResponse.json({ error: "Missing meetingId" }, { status: 400 });
-    }
+// console.log("OpenAI Key present:", !!process.env.OPENAI_API_KEY);
 
-    const [existingMeeting] = await db
-      .select()
-      .from(meetings)
-      .where(
-        and(
-          eq(meetings.id, meetingId),
-          not(eq(meetings.status, "completed")),
-          not(eq(meetings.status, "active")),
-          not(eq(meetings.status, "cancelled")),
-          not(eq(meetings.status, "processing")),
-        ),
-      );
 
-    if (!existingMeeting) {
-      return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
-    }
-    await db
-      .update(meetings)
-      .set({ status: "active", startedAt: new Date() })
-      .where(eq(meetings.id, existingMeeting.id));
+//     const [existingMeeting] = await db
+//       .select()
+//       .from(meetings)
+//       .where(
+//         and(
+//           eq(meetings.id, meetingId),
+//           not(eq(meetings.status, "completed")),
+//           not(eq(meetings.status, "active")),
+//           not(eq(meetings.status, "cancelled")),
+//           not(eq(meetings.status, "processing")),
+//         ),
+//       );
 
-    const [existingAgent] = await db
-      .select()
-      .from(agents)
-      .where(eq(agents.id, existingMeeting.agentId));
+//     if (!existingMeeting) {
+//       return NextResponse.json({ error: "Meeting not found" }, { status: 404 });
+//     }
+//     await db
+//       .update(meetings)
+//       .set({ status: "active", startedAt: new Date() })
+//       .where(eq(meetings.id, existingMeeting.id));
 
-    if (!existingAgent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
-    }
+//     const [existingAgent] = await db
+//       .select()
+//       .from(agents)
+//       .where(eq(agents.id, existingMeeting.agentId));
 
+//     if (!existingAgent) {
+//       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+//     }
+//     console.log("Agent ID:", existingAgent.id);
+
+//     try {
+//     const call = streamVideo.video.call("default", meetingId);
+//     const realtimeClient = await streamVideo.video.connectOpenAi({
+//       call,
+//       openAiApiKey: process.env.OPENAI_API_KEY!,
+//       agentUserId: existingAgent.id,
+//     });
+//      console.log("Realtime agent connected");
+//      console.log("Connected OpenAI realtime");
+
+//     realtimeClient.updateSession({
+//       instructions: existingAgent.instructions,
+//    });
+
+//     console.log("Realtime connected");
+// } catch (err) {
+//   console.error("Realtime failed:", err);
+// }
+if (eventType === "call.session_started") {
+  const event = payload as CallSessionStartedEvent;
+  const meetingId = event.call?.custom?.meetingId;
+
+  if (!meetingId) {
+    return NextResponse.json({ status: "ignored" });
+  }
+
+  const [meeting] = await db
+    .select()
+    .from(meetings)
+    .where(eq(meetings.id, meetingId));
+
+  if (!meeting) {
+    return NextResponse.json({ status: "ignored" });
+  }
+
+  if (meeting.status !== "upcoming") {
+    return NextResponse.json({ status: "ignored" });
+  }
+
+  await db
+    .update(meetings)
+    .set({ status: "active", startedAt: new Date() })
+    .where(eq(meetings.id, meetingId));
+
+  const [agent] = await db
+    .select()
+    .from(agents)
+    .where(eq(agents.id, meeting.agentId));
+
+  if (!agent) {
+    return NextResponse.json({ status: "ignored" });
+  }
+
+  try {
     const call = streamVideo.video.call("default", meetingId);
+
     const realtimeClient = await streamVideo.video.connectOpenAi({
       call,
       openAiApiKey: process.env.OPENAI_API_KEY!,
-      agentUserId: existingAgent.id,
+      agentUserId: agent.id,
     });
 
     realtimeClient.updateSession({
-      instructions: existingAgent.instructions,
-   });
+      instructions: agent.instructions,
+    });
+
+    console.log("Realtime agent connected");
+  } catch (err) {
+    console.error("Realtime failed:", err);
+  }
 
   } else if (eventType === "call.session_participant_left") {
     const event = payload as CallSessionParticipantLeftEvent;
