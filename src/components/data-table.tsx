@@ -32,7 +32,7 @@ export function DataTable<TData, TValue>({
   })
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
+    <div className="rounded-lg border bg-background overflow-hidden">
       <Table>
         <TableBody>
           {table.getRowModel().rows?.length ? (
@@ -44,7 +44,7 @@ export function DataTable<TData, TValue>({
                 className="cursor-pointer"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className="text-sm  p-4">
+                  <TableCell key={cell.id} className="text-sm p-4">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}

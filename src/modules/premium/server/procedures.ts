@@ -1,65 +1,68 @@
 import { eq, count } from "drizzle-orm";
+
 import { db } from "@/db";
-import { agents, meetings } from "@/db/schema";
 import { polarClient } from "@/lib/polar";
+import { agents, meetings } from "@/db/schema";
 import {
-    createTRPCRouter,
-    protectedProcedure,
+  createTRPCRouter,
+  protectedProcedure,
 } from "@/trpc/init";
 
 export const premiumRouter = createTRPCRouter({
-    getCurrentSubscription: protectedProcedure.query(async ({ ctx }) => {
-        const customer = await polarClient.customers.getStateExternal({
-            externalId: ctx.auth.user.id,
-        });
+  getCurrentSubscription: protectedProcedure.query(async ({ ctx }) => {
+    const customer = await polarClient.customers.getStateExternal({
+      externalId: ctx.auth.user.id,
+    });
 
-        const subscription = customer.activeSubscriptions[0];
+    const subscription = customer.activeSubscriptions[0];
 
-        if (!subscription) {
-            return null;
-        }
-        const product = await polarClient.products.get({
-            id: subscription.productId,
-        });
-        
-        return product;
-    }),
+    if (!subscription) {
+      return null;
+    }
 
-    getProducts: protectedProcedure.query(async () => {
-        const products = await polarClient.products.list({
-            isArchived: false,
-            isRecurring: true,
-            sorting: ["price_amount"],
-        });
+    const product = await polarClient.products.get({
+      id: subscription.productId,
+    });
 
-        return products.result.items;
-    }),
-    getFreeUsage: protectedProcedure.query(async ({ ctx }) => {
-        const customer = await polarClient.customers.getStateExternal({
-            externalId: ctx.auth.user.id,
-        });
+    return product;
+  }),
+  getProducts: protectedProcedure.query(async () => {
+    const products = await polarClient.products.list({
+      isArchived: false,
+      isRecurring: true,
+      sorting: ["price_amount"],
+    });
 
-        const subscription = customer.activeSubscriptions?.[0];
-        if (subscription) {
-         
-            return null;
-        }
+    return products.result.items;
+  }),
+  getFreeUsage: protectedProcedure.query(async ({ ctx }) => {
+    const customer = await polarClient.customers.getStateExternal({
+      externalId: ctx.auth.user.id,
+    });
 
-        // Count meetings for this user
-        const [userMeetings] = await db
-            .select({ count: count(meetings.id) })
-            .from(meetings)
-            .where(eq(meetings.userId, ctx.auth.user.id));
+    const subscription = customer.activeSubscriptions[0];
 
-        // Count agents for this user
-        const [userAgents] = await db
-            .select({ count: count(agents.id) })
-            .from(agents)
-            .where(eq(agents.userId, ctx.auth.user.id));
+    if (subscription) {
+      return null;
+    }
 
-        return {
-            meetingCount: userMeetings?.count ?? 0,
-            agentCount: userAgents?.count ?? 0,
-        };
-    }),
+    const [userMeetings] = await db
+      .select({
+        count: count(meetings.id),
+      })
+      .from(meetings)
+      .where(eq(meetings.userId, ctx.auth.user.id));
+
+    const [userAgents] = await db
+      .select({
+        count: count(agents.id),
+      })
+      .from(agents)
+      .where(eq(agents.userId, ctx.auth.user.id));
+
+    return {
+      meetingCount: userMeetings.count,
+      agentCount: userAgents.count,
+    };
+  })
 });

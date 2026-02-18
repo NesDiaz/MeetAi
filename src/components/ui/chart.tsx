@@ -3,7 +3,6 @@
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
-
 import { cn } from "@/lib/utils"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -103,19 +102,6 @@ ${colorConfig
   )
 }
 
-interface ChartTooltip {
-  active?: boolean;
-  payload?: TooltipPayload[];
-}
-type TooltipPayload = {
-  name?: string;
-  color?: string;
-  value?: number | string;
-  payload?: TooltipPayload[];
-  dataKey?: string;
-  stroke?: string;
-};
-
 const ChartTooltip = RechartsPrimitive.Tooltip
 
 function ChartTooltipContent({
@@ -134,8 +120,6 @@ function ChartTooltipContent({
   labelKey,
 }: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
   React.ComponentProps<"div"> & {
-    payload?: TooltipPayload[]
-    label?: number
     hideLabel?: boolean
     hideIndicator?: boolean
     indicator?: "line" | "dot" | "dashed"
@@ -189,17 +173,16 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "border-border/50 bg-background grid min-w-32 items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
+        "border-border/50 bg-background grid min-w-[8rem] items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl",
         className
       )}
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item: TooltipPayload, index: number) => {
+        {payload.map((item, index) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
-          const indicatorColor = color ?? item.payload?.fill ?? item.color ?? "#8884d8";
-
+          const indicatorColor = color || item.payload.fill || item.color
 
           return (
             <div
@@ -210,7 +193,7 @@ function ChartTooltipContent({
               )}
             >
               {formatter && item?.value !== undefined && item.name ? (
-                formatter(item.value, item.name, item, index, item.payload!)
+                formatter(item.value, item.name, item, index, item.payload)
               ) : (
                 <>
                   {itemConfig?.icon ? (
@@ -265,19 +248,7 @@ function ChartTooltipContent({
   )
 }
 
-type ChartLegendContentProps = React.ComponentProps<"div"> & {
-  className?: string;
-  hideIcon?: boolean;
-  payload?: {
-    value: string;
-    color?: string;
-    dataKey?: string;
-  }[];
-  verticalAlign?: "top" | "bottom" | "middle";
-  nameKey?: string;
-};
-
-const ChartLegend = RechartsPrimitive.Legend;
+const ChartLegend = RechartsPrimitive.Legend
 
 function ChartLegendContent({
   className,
@@ -285,10 +256,16 @@ function ChartLegendContent({
   payload,
   verticalAlign = "bottom",
   nameKey,
-}: ChartLegendContentProps) {
-  const { config } = useChart();
+}: React.ComponentProps<"div"> &
+  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+    hideIcon?: boolean
+    nameKey?: string
+  }) {
+  const { config } = useChart()
 
-  if (!payload?.length) return null;
+  if (!payload?.length) {
+    return null
+  }
 
   return (
     <div
@@ -299,8 +276,8 @@ function ChartLegendContent({
       )}
     >
       {payload.map((item) => {
-        const key = `${nameKey || item.dataKey || "value"}`;
-        const itemConfig = getPayloadConfigFromPayload(config, item, key);
+        const key = `${nameKey || item.dataKey || "value"}`
+        const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
         return (
           <div
@@ -314,19 +291,20 @@ function ChartLegendContent({
             ) : (
               <div
                 className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: item.color }}
+                style={{
+                  backgroundColor: item.color,
+                }}
               />
             )}
             {itemConfig?.label}
           </div>
-        );
+        )
       })}
     </div>
-  );
+  )
 }
 
-
-
+// Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(
   config: ChartConfig,
   payload: unknown,

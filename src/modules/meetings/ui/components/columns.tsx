@@ -1,8 +1,7 @@
-"use client";
+"use client"
 
 import { format } from "date-fns";
-import { ColumnDef } from "@tanstack/react-table";
-import { GeneratedAvatar } from "@/components/generated-avatar";
+import { ColumnDef } from "@tanstack/react-table"
 import {
   CircleCheckIcon,
   CircleXIcon,
@@ -10,13 +9,13 @@ import {
   ClockFadingIcon,
   CornerDownRightIcon,
   LoaderIcon,
-} from "lucide-react";
+} from "lucide-react"
 
 import { cn, formatDuration } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge"
+import { GeneratedAvatar } from "@/components/generated-avatar"
 
-import { Badge } from "@/components/ui/badge";
-
-import { MeetingGetMany } from "../../types";
+import { MeetingGetMany } from "../../types"
 
 const statusIconMap = {
   upcoming: ClockArrowUpIcon,
@@ -28,11 +27,11 @@ const statusIconMap = {
 
 const statusColorMap = {
   upcoming: "bg-yellow-500/20 text-yellow-800 border-yellow-800/5",
-  active: "bg-blue500/20 text-blue-800 border-blue-800/5",
+  active: "bg-blue-500/20 text-blue-800 border-blue-800/5",
   completed: "bg-emerald-500/20 text-emerald-800 border-emerald-800/5",
-  processing: "bg-gray-300/20 text-gray-800 border-gray-800/5",
   cancelled: "bg-rose-500/20 text-rose-800 border-rose-800/5",
-};
+  processing: "bg-gray-300/20 text-gray-800 border-gray-800/5",
+}
 
 export const columns: ColumnDef<MeetingGetMany[number]>[] = [
   {
@@ -54,20 +53,17 @@ export const columns: ColumnDef<MeetingGetMany[number]>[] = [
             className="size-4"
           />
           <span className="text-sm text-muted-foreground">
-            {row.original.startedAt
-              ? format(row.original.startedAt, "MMM d")
-              : ""}
+            {row.original.startedAt ? format(row.original.startedAt, "MMM d") : ""}
           </span>
         </div>
       </div>
-    ),
+    )
   },
   {
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const Icon =
-        statusIconMap[row.original.status as keyof typeof statusIconMap];
+      const Icon = statusIconMap[row.original.status as keyof typeof statusIconMap];
 
       return (
         <Badge
@@ -84,7 +80,7 @@ export const columns: ColumnDef<MeetingGetMany[number]>[] = [
           />
           {row.original.status}
         </Badge>
-      );
+      )
     },
   },
   {
@@ -96,9 +92,7 @@ export const columns: ColumnDef<MeetingGetMany[number]>[] = [
         className="capitalize [&>svg]:size-4 flex items-center gap-x-2"
       >
         <ClockFadingIcon className="text-blue-700" />
-        {row.original.duration
-          ? formatDuration(row.original.duration)
-          : "No duration"}
+        {row.original.duration ? formatDuration(row.original.duration) : "No duration"}
       </Badge>
     ),
   },

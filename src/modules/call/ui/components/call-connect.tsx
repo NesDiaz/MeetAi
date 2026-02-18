@@ -12,6 +12,7 @@ import {
 } from "@stream-io/video-react-sdk";
 
 import { useTRPC } from "@/trpc/client";
+
 import "@stream-io/video-react-sdk/dist/css/styles.css";
 import { CallUI } from "./call-ui";
 
@@ -21,7 +22,7 @@ interface Props {
   userId: string;
   userName: string;
   userImage: string;
-}
+};
 
 export const CallConnect = ({
   meetingId,
@@ -36,9 +37,6 @@ export const CallConnect = ({
   );
 
   const [client, setClient] = useState<StreamVideoClient>();
-  const [call, setCall] = useState<Call>();
-
-  // Create Stream client
   useEffect(() => {
     const _client = new StreamVideoClient({
       apiKey: process.env.NEXT_PUBLIC_STREAM_VIDEO_API_KEY!,
@@ -58,22 +56,22 @@ export const CallConnect = ({
     };
   }, [userId, userName, userImage, generateToken]);
 
-  // Create call instance (no join here)
+  const [call, setCall] = useState<Call>();
   useEffect(() => {
-    if (!client) return;
+      if (!client) return;
 
-    const _call = client.call("default", meetingId);
-    _call.camera.disable();
-    _call.microphone.disable();
-    setCall(_call);
+      const _call = client.call("default", meetingId);
+      _call.camera.disable();
+      _call.microphone.disable();
+      setCall(_call);
 
-    return () => {
-      if (_call.state.callingState !== CallingState.LEFT) {
-        _call.leave();
-        _call.endCall();
-        setCall(undefined);
-      }
-    };
+      return () => {
+        if (_call.state.callingState !== CallingState.LEFT) {
+          _call.leave();
+          _call.endCall();
+          setCall(undefined);
+        }
+      };
   }, [client, meetingId]);
 
   if (!client || !call) {

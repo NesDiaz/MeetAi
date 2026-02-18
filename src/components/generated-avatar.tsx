@@ -5,34 +5,34 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface GeneratedAvatarProps {
-    seed: string;
-    className?: string;
-    variant: "botttsNeutral" | "initials";
+  seed: string;
+  className?: string;
+  variant: "botttsNeutral" | "initials";
 }
 
-export const GeneratedAvatar = ({ 
-    seed,
-    className,
-    variant
+export const GeneratedAvatar = ({
+  seed,
+  className,
+  variant
 }: GeneratedAvatarProps) => {
-    let avatar;
+  let avatar;
 
-    if (variant === "botttsNeutral") {
-        avatar = createAvatar(botttsNeutral, {
-            seed,
-        })
-    } else {
-        avatar = createAvatar(initials, {
-            seed,
-            fontWeight: 500,
-            fontSize:42,
-        });
-    }
+  if (variant === "botttsNeutral") {
+    avatar = createAvatar(botttsNeutral, {
+      seed,
+    });
+  } else {
+    avatar = createAvatar(initials, {
+      seed,
+      fontWeight: 500,
+      fontSize: 42,
+    });
+  }
 
-    return (
-        <Avatar className={cn(className)}>
-        <AvatarImage src={avatar.toDataUri()} alt="Avatar" />
-        <AvatarFallback>{seed.charAt(0).toUpperCase()}</AvatarFallback>
-        </Avatar>
-    )
+  return (
+    <Avatar className={cn(className)}>
+      <AvatarImage src={avatar.toDataUri()} alt="Avatar" />
+      <AvatarFallback>{seed.charAt(0).toUpperCase()}</AvatarFallback>
+    </Avatar>
+  );
 };

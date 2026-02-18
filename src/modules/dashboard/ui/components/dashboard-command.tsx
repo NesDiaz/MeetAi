@@ -2,21 +2,21 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Dispatch, SetStateAction, useState } from "react";
 
-import {
-  CommandGroup,
-  CommandInput,
-  CommandItem,
+import { 
+  CommandResponsiveDialog, 
+  CommandInput, 
+  CommandItem, 
   CommandList,
-  CommandResponsiveDialog,
+  CommandGroup,
+  CommandEmpty
 } from "@/components/ui/command";
 import { useTRPC } from "@/trpc/client";
 import { GeneratedAvatar } from "@/components/generated-avatar";
-import { CommandEmpty } from "cmdk";
 
 interface Props {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-}
+};
 
 export const DashboardCommand = ({ open, setOpen }: Props) => {
   const router = useRouter();
@@ -35,14 +35,11 @@ export const DashboardCommand = ({ open, setOpen }: Props) => {
       pageSize: 100,
     })
   );
+
   return (
-    <CommandResponsiveDialog
-      shouldFilter={false}
-      open={open}
-      onOpenChange={setOpen}
-    >
+    <CommandResponsiveDialog shouldFilter={false} open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="find a meeting or agent..."
+        placeholder="Find a meeting or agent..."
         value={search}
         onValueChange={(value) => setSearch(value)}
       />
@@ -56,7 +53,7 @@ export const DashboardCommand = ({ open, setOpen }: Props) => {
           {meetings.data?.items.map((meeting) => (
             <CommandItem
               onSelect={() => {
-                router.push(`/call/${meeting.id}`);
+                router.push(`/meetings/${meeting.id}`);
                 setOpen(false);
               }}
               key={meeting.id}
@@ -79,11 +76,11 @@ export const DashboardCommand = ({ open, setOpen }: Props) => {
               }}
               key={agent.id}
             >
-                <GeneratedAvatar
+              <GeneratedAvatar
                 seed={agent.name}
                 variant="botttsNeutral"
                 className="size-5"
-                />
+              />
               {agent.name}
             </CommandItem>
           ))}

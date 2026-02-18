@@ -1,4 +1,5 @@
 import "server-only";
+
 import { StreamClient } from "@stream-io/node-sdk";
 
 export const streamVideo = new StreamClient(

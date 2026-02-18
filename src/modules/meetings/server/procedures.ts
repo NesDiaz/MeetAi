@@ -1,34 +1,17 @@
-import { db } from "@/db";
-import { meetings, agents, user } from "@/db/schema";
-import {
-  createTRPCRouter,
-  premiumProcedure,
-  protectedProcedure,
-} from "@/trpc/init";
-import JSONL from "jsonl-parse-stringify";
-
 import { z } from "zod";
-import {
-  eq,
-  getTableColumns,
-  and,
-  ilike,
-  desc,
-  count,
-  sql,
-  inArray,
-} from "drizzle-orm";
-import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
-  MIN_PAGE_SIZE,
-} from "@/constants";
+import JSONL from "jsonl-parse-stringify";
 import { TRPCError } from "@trpc/server";
-import { meetingsInsertSchema, meetingsUpdateSchema } from "../schemas";
-import { MeetingStatus, StreamTranscriptItem } from "../types";
-import { streamVideo } from "@/lib/stream-video";
+import { and, count, desc, eq, getTableColumns, ilike, inArray, sql } from "drizzle-orm";
+
+import { db } from "@/db";
+import { agents, meetings, user } from "@/db/schema";
 import { generateAvatarUri } from "@/lib/avatar";
+import { streamVideo } from "@/lib/stream-video";
+import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init";
+import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, MIN_PAGE_SIZE } from "@/constants";
+
+import { MeetingStatus, StreamTranscriptItem } from "../types";
+import { meetingsInsertSchema, meetingsUpdateSchema } from "../schemas";
 import { streamChat } from "@/lib/stream-chat";
 
 export const meetingsRouter = createTRPCRouter({
@@ -48,7 +31,7 @@ export const meetingsRouter = createTRPCRouter({
         .select()
         .from(meetings)
         .where(
-          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id)),
+          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id))
         );
 
       if (!existingMeeting) {
@@ -57,6 +40,7 @@ export const meetingsRouter = createTRPCRouter({
           message: "Meeting not found",
         });
       }
+
       if (!existingMeeting.transcriptUrl) {
         return [];
       }
@@ -82,7 +66,7 @@ export const meetingsRouter = createTRPCRouter({
             image:
               user.image ??
               generateAvatarUri({ seed: user.name, variant: "initials" }),
-          })),
+          }))
         );
 
       const agentSpeakers = await db
@@ -96,14 +80,14 @@ export const meetingsRouter = createTRPCRouter({
               seed: agent.name,
               variant: "botttsNeutral",
             }),
-          })),
+          }))
         );
 
       const speakers = [...userSpeakers, ...agentSpeakers];
 
       const transcriptWithSpeakers = transcript.map((item) => {
         const speaker = speakers.find(
-          (speaker) => speaker.id === item.speaker_id,
+          (speaker) => speaker.id === item.speaker_id
         );
 
         if (!speaker) {
@@ -126,7 +110,8 @@ export const meetingsRouter = createTRPCRouter({
             image: speaker.image,
           },
         };
-      });
+      })
+
       return transcriptWithSpeakers;
     }),
   generateToken: protectedProcedure.mutation(async ({ ctx }) => {
@@ -135,7 +120,7 @@ export const meetingsRouter = createTRPCRouter({
         id: ctx.auth.user.id,
         name: ctx.auth.user.name,
         role: "admin",
-        image:
+        image: 
           ctx.auth.user.image ??
           generateAvatarUri({ seed: ctx.auth.user.name, variant: "initials" }),
       },
@@ -158,7 +143,10 @@ export const meetingsRouter = createTRPCRouter({
       const [removedMeeting] = await db
         .delete(meetings)
         .where(
-          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id)),
+          and(
+            eq(meetings.id, input.id),
+            eq(meetings.userId, ctx.auth.user.id),
+          )
         )
         .returning();
 
@@ -178,7 +166,10 @@ export const meetingsRouter = createTRPCRouter({
         .update(meetings)
         .set(input)
         .where(
-          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id)),
+          and(
+            eq(meetings.id, input.id),
+            eq(meetings.userId, ctx.auth.user.id),
+          )
         )
         .returning();
 
@@ -188,28 +179,9 @@ export const meetingsRouter = createTRPCRouter({
           message: "Meeting not found",
         });
       }
+
       return updatedMeeting;
     }),
-  cancel: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      const [updatedMeeting] = await db
-        .update(meetings)
-        .set({ status: MeetingStatus.Cancelled })
-        .where(
-          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id)),
-        )
-        .returning();
-
-      if (!updatedMeeting) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Meeting not found",
-        });
-      }
-      return updatedMeeting;
-    }),
-
   create: premiumProcedure("meetings")
     .input(meetingsInsertSchema)
     .mutation(async ({ input, ctx }) => {
@@ -218,7 +190,6 @@ export const meetingsRouter = createTRPCRouter({
         .values({
           ...input,
           userId: ctx.auth.user.id,
-          recordingUrl: input.recordingUrl ?? null,
         })
         .returning();
 
@@ -228,7 +199,7 @@ export const meetingsRouter = createTRPCRouter({
           created_by_id: ctx.auth.user.id,
           custom: {
             meetingId: createdMeeting.id,
-            meetingName: createdMeeting.name,
+            meetingName: createdMeeting.name
           },
           settings_override: {
             transcription: {
@@ -255,6 +226,7 @@ export const meetingsRouter = createTRPCRouter({
           message: "Agent not found",
         });
       }
+
       await streamVideo.upsertUsers([
         {
           id: existingAgent.id,
@@ -269,30 +241,30 @@ export const meetingsRouter = createTRPCRouter({
 
       return createdMeeting;
     }),
-
   getOne: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      const [existingMeeting] = await db
-        .select({
-          ...getTableColumns(meetings),
-          agent: agents,
-          duration: sql<number>`EXTRACT(EPOCH FROM (ended_at - started_at))`.as(
-            "duration",
-          ),
-        })
-        .from(meetings)
-        .innerJoin(agents, eq(meetings.agentId, agents.id))
-        .where(
-          and(eq(meetings.id, input.id), eq(meetings.userId, ctx.auth.user.id)),
-        );
-      if (!existingMeeting) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Agent not found" });
-      }
+    const [existingMeeting] = await db
+      .select({
+        ...getTableColumns(meetings),
+        agent: agents,
+        duration: sql<number>`EXTRACT(EPOCH FROM (ended_at - started_at))`.as("duration"),
+      })
+      .from(meetings)
+      .innerJoin(agents, eq(meetings.agentId, agents.id))
+      .where(
+        and(
+          eq(meetings.id, input.id),
+          eq(meetings.userId, ctx.auth.user.id),
+        )
+      );
 
-      return existingMeeting;
-    }),
+    if (!existingMeeting) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Meeting not found" });
+    }
 
+    return existingMeeting;
+  }),
   getMany: protectedProcedure
     .input(
       z.object({
@@ -313,7 +285,7 @@ export const meetingsRouter = createTRPCRouter({
             MeetingStatus.Cancelled,
           ])
           .nullish(),
-      }),
+      })
     )
     .query(async ({ ctx, input }) => {
       const { search, page, pageSize, status, agentId } = input;
@@ -322,9 +294,7 @@ export const meetingsRouter = createTRPCRouter({
         .select({
           ...getTableColumns(meetings),
           agent: agents,
-          duration: sql<number>`EXTRACT(EPOCH FROM (ended_at - started_at))`.as(
-            "duration",
-          ),
+          duration: sql<number>`EXTRACT(EPOCH FROM (ended_at - started_at))`.as("duration"),
         })
         .from(meetings)
         .innerJoin(agents, eq(meetings.agentId, agents.id))
@@ -334,22 +304,23 @@ export const meetingsRouter = createTRPCRouter({
             search ? ilike(meetings.name, `%${search}%`) : undefined,
             status ? eq(meetings.status, status) : undefined,
             agentId ? eq(meetings.agentId, agentId) : undefined,
-          ),
+          )
         )
         .orderBy(desc(meetings.createdAt), desc(meetings.id))
         .limit(pageSize)
-        .offset((page - 1) * pageSize);
+        .offset((page - 1) * pageSize)
 
       const [total] = await db
         .select({ count: count() })
         .from(meetings)
+        .innerJoin(agents, eq(meetings.agentId, agents.id))
         .where(
           and(
             eq(meetings.userId, ctx.auth.user.id),
             search ? ilike(meetings.name, `%${search}%`) : undefined,
             status ? eq(meetings.status, status) : undefined,
             agentId ? eq(meetings.agentId, agentId) : undefined,
-          ),
+          )
         );
 
       const totalPages = Math.ceil(total.count / pageSize);

@@ -1,4 +1,4 @@
 import { Inngest } from "inngest";
 
 // Create a client to send and receive events
-export const inngest = new Inngest({ id: "meet-ai-tester", eventKey: process.env.INNGEST_EVENT_KEY, });
+export const inngest = new Inngest({ id: "meet-ai-2" });

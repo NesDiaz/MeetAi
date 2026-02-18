@@ -1,16 +1,17 @@
-import JSONL from "jsonl-parse-stringify";
-
-import { inngest } from "@/inngest/client";
-import { StreamTranscriptItem } from "@/modules/meetings/types";
 import { eq, inArray } from "drizzle-orm";
+import JSONL from "jsonl-parse-stringify";
+import { createAgent, openai, TextMessage } from "@inngest/agent-kit";
+
 import { db } from "@/db";
 import { agents, meetings, user } from "@/db/schema";
-import { createAgent, openai, TextMessage } from "@inngest/agent-kit";
+import { inngest } from "@/inngest/client";
+
+import { StreamTranscriptItem } from "@/modules/meetings/types";
 
 const summarizer = createAgent({
   name: "summarizer",
-  system:
-    `You are an expert summarizer. You write readable, concise, simple content. You are given a transcript of a meeting and you need to summarize it.
+  system: `
+    You are an expert summarizer. You write readable, concise, simple content. You are given a transcript of a meeting and you need to summarize it.
 
 Use the following markdown structure for every output:
 
@@ -29,7 +30,7 @@ Example:
 #### Next Section
 - Feature X automatically does Y
 - Mention of integration with Z
-`.trim(),
+  `.trim(),
   model: openai({ model: "gpt-4o", apiKey: process.env.OPENAI_API_KEY }),
 });
 
@@ -85,6 +86,7 @@ export const meetingsProcessing = inngest.createFunction(
             },
           };
         }
+
         return {
           ...item,
           user: {
@@ -106,7 +108,7 @@ export const meetingsProcessing = inngest.createFunction(
           summary: (output[0] as TextMessage).content as string,
           status: "completed",
         })
-        .where(eq(meetings.id, event.data.meetingId));
-    });
-  }
+        .where(eq(meetings.id, event.data.meetingId))
+    })
+  },
 );
