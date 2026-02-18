@@ -11,7 +11,7 @@ export const MeetingsSearchFilter = () => {
     <div className="relative">
       <Input
         placeholder="Filter by name"
-        className="h-9 bg-white w-[200px] pl-7"
+        className="h-9 bg-white w-50 pl-7"
         value={filters.search}
         onChange={(e) => setFilters({ search: e.target.value })}
       />

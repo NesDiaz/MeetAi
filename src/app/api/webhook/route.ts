@@ -102,6 +102,8 @@ export async function POST(req: NextRequest) {
     realtimeClient.updateSession({
       instructions: existingAgent.instructions,
     });
+await realtimeClient.generateResponse();
+
   } else if (eventType === "call.session_participant_left") {
     const event = payload as CallSessionParticipantLeftEvent;
     const meetingId = event.call_cid.split(":")[1]; // call_cid is formatted as "type:id"
