@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     realtimeClient.updateSession({
       instructions: existingAgent.instructions,
+      voice: "alloy",
     });
 await realtimeClient.generateResponse();
 
