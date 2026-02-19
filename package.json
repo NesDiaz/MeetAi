@@ -48,7 +48,7 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "@stream-io/node-sdk": "^0.7.42",
-    "@stream-io/openai-realtime-api": "0.2.0",
+    "@stream-io/openai-realtime-api": "^0.3.3",
     "@stream-io/video-react-sdk": "^1.18.0",
     "@tanstack/react-query": "^5.90.5",
     "@tanstack/react-table": "^8.21.3",
