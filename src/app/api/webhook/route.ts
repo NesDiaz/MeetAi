@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
     realtimeClient.updateSession({
       instructions: existingAgent.instructions,
       voice: "alloy",
+      turn_detection: { type: "server_vad" },
     });
     console.log("CREATING RESPONSE");
 
