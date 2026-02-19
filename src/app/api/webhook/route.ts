@@ -109,7 +109,10 @@ export async function POST(req: NextRequest) {
       instructions: existingAgent.instructions,
       voice: "alloy",
     });
-await realtimeClient.generateResponse();
+    console.log("CREATING RESPONSE");
+
+await realtimeClient.createResponse();
+
 
   } else if (eventType === "call.session_participant_left") {
     const event = payload as CallSessionParticipantLeftEvent;
